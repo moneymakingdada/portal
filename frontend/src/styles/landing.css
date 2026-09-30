@@ -1,0 +1,144 @@
+/* Hero ------------------------------------------------------------------------- */
+.hero {
+  color: #e6eee9;
+  background:
+    radial-gradient(70% 90% at 88% 30%, rgba(34, 104, 79, 0.6), transparent 65%),
+    var(--forest-900);
+}
+.lnav { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding-block: 1.4rem; }
+.lnav__links { display: flex; gap: 1.75rem; margin-left: auto; margin-right: 1rem; }
+.lnav__link { color: #c5d4cc; text-decoration: none; font-weight: 500; font-size: 0.95rem; }
+.lnav__link:hover { color: #fff; }
+.lnav__actions { display: flex; gap: 0.6rem; }
+
+.hero__grid {
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(2rem, 6vw, 5rem); align-items: center;
+  padding-block: clamp(3rem, 8vw, 6.5rem) clamp(3.5rem, 9vw, 7rem);
+}
+.hero__title {
+  font-size: clamp(2.5rem, 5.4vw, 4.4rem); line-height: 1.04; letter-spacing: -0.025em; color: #fff;
+  font-variation-settings: "opsz" 72;
+}
+.hero__lede { margin-top: 1.5rem; max-width: 52ch; font-size: 1.125rem; color: #c5d4cc; }
+.hero__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
+.hero__note { margin-top: 1.1rem; font-size: 0.9rem; color: #94aa9f; }
+
+/* The exchange: request -> SMS -> check. The digits arriving is the one moment of motion. */
+.exchange { position: relative; display: grid; gap: 1.5rem; padding-left: 1.85rem; }
+.exchange::before {
+  content: ""; position: absolute; left: 0.4rem; top: 0.5rem; bottom: 0.5rem; width: 1px;
+  background: linear-gradient(to bottom, rgba(236, 220, 174, 0.55), rgba(255, 255, 255, 0.12));
+}
+.exchange__step { position: relative; }
+.exchange__step::before {
+  content: ""; position: absolute; left: -1.85rem; top: 0.3rem; width: 0.85rem; height: 0.85rem;
+  border-radius: 50%; background: var(--forest-900); border: 2px solid var(--gold-500);
+}
+.exchange__label { margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: #b3c5bc; }
+.exchange__code {
+  margin: 0; padding: 0.9rem 1.1rem; overflow-x: auto;
+  background: var(--forest-950); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: var(--radius-m);
+  font-size: 0.84rem; line-height: 1.65; color: #d8e4de;
+}
+.exchange__code code { font-family: inherit; }
+.exchange__result { margin-top: 0.6rem; font-family: var(--font-mono); font-size: 0.9rem; color: var(--gold-200); }
+
+.sms {
+  max-width: 24rem; padding: 0.85rem 1.1rem 1rem; color: var(--ink);
+  background: #eef3f0; border-radius: 18px 18px 18px 4px;
+  box-shadow: 0 22px 44px -22px rgba(0, 0, 0, 0.7);
+  animation: sms-in 0.6s var(--ease) 0.5s both;
+}
+.sms__from { font-size: 0.8rem; font-weight: 700; color: var(--forest-700); margin-bottom: 0.15rem; }
+.sms__body { font-size: 0.975rem; line-height: 1.7; }
+.sms__code { white-space: nowrap; }
+.sms__digit {
+  display: inline-block; margin-inline: 1px; padding: 0 0.28em;
+  font-family: var(--font-mono); font-weight: 600; color: var(--gold-200);
+  background: var(--forest-900); border-radius: 5px;
+  animation: digit-in 0.45s var(--ease) both;
+  animation-delay: calc(1.2s + var(--i) * 0.14s);
+}
+.exchange__step--last { animation: fade-in 0.7s ease 2.5s both; }
+
+@keyframes sms-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes digit-in { from { opacity: 0; transform: translateY(8px) scale(0.85); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Sections ---------------------------------------------------------------------- */
+.section { padding-block: clamp(4rem, 9vw, 7rem); }
+.section--paper { background: var(--paper); }
+.section__title { font-size: clamp(1.9rem, 3.6vw, 2.9rem); }
+.section__lede { margin-top: 1rem; max-width: 46ch; color: var(--muted); font-size: 1.05rem; }
+
+/* Platform components: rows, not cards. Status is text, so it never depends on colour alone. */
+.platform { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(2rem, 6vw, 5rem); }
+.platform__intro { align-self: start; position: sticky; top: 2rem; }
+.platform__groups { display: grid; gap: 3rem; }
+.pgroup__title { font-family: var(--font-body); font-size: 1rem; font-weight: 700; letter-spacing: 0; color: var(--forest-700); padding-bottom: 0.75rem; border-bottom: 2px solid var(--forest-800); }
+.pitem { display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); gap: 0.4rem 2rem; padding-block: 1.1rem; border-bottom: 1px solid var(--line); }
+.pitem__name { display: grid; gap: 0.3rem; font-weight: 600; line-height: 1.3; }
+.pitem__text { color: var(--ink-soft); max-width: 60ch; }
+.status { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; font-weight: 600; }
+.status::before { content: ""; width: 0.55rem; height: 0.55rem; border-radius: 50%; border: 1.5px solid currentColor; }
+.status--available { color: var(--ok); }
+.status--available::before { background: currentColor; }
+.status--soon { color: var(--muted); }
+
+/* How it works: a real sequence, so it is numbered. */
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2rem; margin-top: 3rem; }
+.step { position: relative; padding-top: 1.25rem; border-top: 2px solid var(--forest-800); }
+.step__num { display: block; font-family: var(--font-display); font-size: 2.6rem; line-height: 1; color: var(--forest-700); margin-bottom: 0.75rem; }
+.step__title { font-size: 1.3rem; }
+.step__text { margin-top: 0.5rem; color: var(--ink-soft); }
+
+/* Quickstart */
+.quick { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(2rem, 5vw, 4.5rem); align-items: start; }
+.quick__points { display: grid; gap: 0.7rem; margin-top: 1.75rem; color: var(--ink-soft); }
+.quick__points li { padding-left: 1.4rem; position: relative; }
+.quick__points li::before { content: ""; position: absolute; left: 0; top: 0.7em; width: 0.65rem; height: 2px; background: var(--gold-500); }
+.quick__points code { padding: 0.1em 0.35em; background: var(--line-soft); border-radius: 4px; font-size: 0.88em; }
+
+/* Ghana */
+.ghana__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 clamp(2rem, 6vw, 5rem); margin-top: 2.5rem; }
+.ghana__item { padding-block: 1.4rem; border-top: 1px solid var(--line); }
+.ghana__title { font-family: var(--font-display); font-size: 1.4rem; font-weight: 500; letter-spacing: -0.01em; }
+.ghana__text { margin-top: 0.4rem; color: var(--ink-soft); max-width: 46ch; }
+
+/* FAQ */
+.faq { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(2rem, 6vw, 5rem); }
+.faq__item { border-bottom: 1px solid var(--line); }
+.faq__item:first-child { border-top: 1px solid var(--line); }
+.faq__q { display: flex; justify-content: space-between; gap: 1rem; padding: 1.15rem 0; font-weight: 600; cursor: pointer; list-style: none; }
+.faq__q::-webkit-details-marker { display: none; }
+.faq__q::after { content: "+"; font-family: var(--font-mono); font-size: 1.25rem; line-height: 1; color: var(--forest-700); transition: transform 0.2s var(--ease); }
+.faq__item[open] .faq__q::after { transform: rotate(45deg); }
+.faq__a { padding-bottom: 1.25rem; max-width: 62ch; color: var(--ink-soft); }
+
+/* Closing band + footer */
+.cta { background: var(--forest-900); padding-block: clamp(3.5rem, 8vw, 6rem); }
+.cta__inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2rem; }
+.cta__title { max-width: 20ch; font-size: clamp(2rem, 4vw, 3.1rem); color: #fff; }
+.cta__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.lfoot { background: var(--forest-950); color: #a9bbb3; padding-block: 2.25rem; }
+.lfoot__inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem 2rem; }
+.lfoot__links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-left: auto; }
+.lfoot__links a { color: #c5d4cc; text-decoration: none; font-size: 0.925rem; }
+.lfoot__links a:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.lfoot__copy { font-size: 0.875rem; }
+
+/* Responsive -------------------------------------------------------------------- */
+@media (max-width: 980px) {
+  .hero__grid, .platform, .quick, .faq { grid-template-columns: minmax(0, 1fr); }
+  .platform__intro { position: static; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lnav__links { display: none; }
+  .lnav__actions { margin-left: auto; }
+}
+@media (max-width: 640px) {
+  .pitem { grid-template-columns: minmax(0, 1fr); }
+  .steps, .ghana__list { grid-template-columns: minmax(0, 1fr); }
+  .lnav__actions .btn--outline-light { display: none; }
+  .lfoot__links { margin-left: 0; }
+}

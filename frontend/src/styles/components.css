@@ -1,0 +1,63 @@
+/* Logo ---------------------------------------------------------------------- */
+.logo { display: inline-flex; align-items: center; gap: 0.6rem; text-decoration: none; color: var(--forest-900); }
+.logo__word { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.logo--light { color: #fff; }
+
+/* One-time code boxes ---------------------------------------------------------- */
+.otp { display: flex; gap: clamp(0.4rem, 2vw, 0.65rem); }
+.otp__box {
+  flex: 1 1 0; min-width: 0; max-width: 3.6rem; aspect-ratio: 1 / 1.15;
+  text-align: center; padding: 0;
+  font-family: var(--font-mono); font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 500;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m);
+  caret-color: var(--forest-700);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.otp__box:focus-visible { outline: none; border-color: var(--forest-600); box-shadow: 0 0 0 3px rgba(34, 104, 79, 0.22); }
+.otp__box--invalid { border-color: var(--bad); }
+.field__input--with-trailing { padding-right: 4.75rem; }
+
+/* Code tabs --------------------------------------------------------------------- */
+.codetabs { background: var(--forest-950); border-radius: var(--radius-l); overflow: hidden; color: #e8efeb; }
+.codetabs__bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.35rem 0.6rem 0 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.codetabs__tabs { display: flex; gap: 0.25rem; overflow-x: auto; }
+.codetabs__tab {
+  padding: 0.7rem 0.85rem; background: none; border: 0; border-bottom: 2px solid transparent;
+  color: #a9bbb3; font-weight: 600; font-size: 0.9rem; white-space: nowrap;
+}
+.codetabs__tab:hover { color: #fff; }
+.codetabs__tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--gold-500); }
+.codetabs__tab:focus-visible, .codetabs__copy:focus-visible, .codetabs__pane:focus-visible { outline: 2px solid var(--gold-400); outline-offset: -2px; }
+.codetabs__copy {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; margin-bottom: 0.2rem;
+  background: rgba(255, 255, 255, 0.07); border: 0; border-radius: var(--radius-s);
+  color: #dbe6e0; font-size: 0.85rem; font-weight: 600;
+}
+.codetabs__copy:hover { background: rgba(255, 255, 255, 0.14); }
+.codetabs__pane {
+  margin: 0; padding: 1.15rem 1.25rem 1.35rem; overflow-x: auto; max-width: 100%;
+  font-size: 0.86rem; line-height: 1.7; tab-size: 2; color: #d8e4de;
+}
+.codetabs__pane code { font-family: inherit; }
+
+/* States ------------------------------------------------------------------------- */
+.state { display: flex; align-items: center; gap: 0.6rem; margin: 1rem 0; color: var(--muted); }
+.notice.state { justify-content: space-between; color: inherit; }
+.empty { padding: 2.5rem 1.25rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius-l); background: var(--paper); }
+.empty__title { font-size: 1.35rem; }
+.empty__body { margin: 0.5rem auto 1.1rem; max-width: 46ch; color: var(--muted); }
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.25rem; }
+.pager__status { color: var(--muted); font-size: 0.9rem; }
+
+/* Page header (dashboard) ------------------------------------------------------- */
+.pagehead { margin-bottom: 1.75rem; }
+.pagehead__title { font-size: clamp(1.9rem, 3.4vw, 2.5rem); }
+.pagehead__lede { margin-top: 0.5rem; max-width: 62ch; color: var(--muted); }
+
+/* Full-page states ------------------------------------------------------------- */
+.fullpage { min-height: 100vh; display: grid; place-items: center; padding: 2rem; text-align: center; }
+.notfound__title { font-size: clamp(2rem, 4vw, 3rem); }
+.notfound__text { margin: 0.6rem 0 1.4rem; color: var(--muted); }
