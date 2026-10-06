@@ -6,6 +6,7 @@ import Signup from "./pages/Signup";
 import DashboardLayout from "./pages/dashboard/DashboardLayout";
 import Overview from "./pages/dashboard/Overview";
 import ApiKeys from "./pages/dashboard/ApiKeys";
+import SenderIds from "./pages/dashboard/SenderIds";
 import Customers from "./pages/dashboard/Customers";
 import CustomerDetail from "./pages/dashboard/CustomerDetail";
 import Templates from "./pages/dashboard/Templates";
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="customers/:id" element={<CustomerDetail />} />
         <Route path="templates" element={<Templates />} />
         <Route path="api-keys" element={<ApiKeys />} />
+        <Route path="sender-ids" element={<SenderIds />} />
         <Route path="messages" element={<Messages />} />
         <Route path="wallet" element={<Wallet />} />
         <Route path="plans" element={<Plans />} />

@@ -4,8 +4,10 @@ from celery import shared_task
 from django.utils import timezone
 
 from . import providers
+from .email_provider import send_email
 from .models import Message
 from .services import fail_message
+from common.errors import ApiError
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,32 @@ def send_sms(self, message_id: str, body: str):
     else:
         logger.warning("Message %s failed: %s %s", message_id, result.error_code, result.error_message)
         fail_message(message.pk, result.error_code)
+
+
+@shared_task(bind=True, max_retries=3)
+def send_email_otp(self, message_id: str, subject: str, body: str):
+    """Hand one queued email to Django's mail backend (see settings.EMAIL_BACKEND)."""
+    try:
+        message = Message.objects.get(pk=message_id)
+    except Message.DoesNotExist:
+        logger.error("send_email_otp: message %s not found", message_id)
+        return
+    if message.status != Message.Status.QUEUED:
+        return  # already handled (e.g. a duplicate delivery of this task)
+
+    try:
+        send_email(to=message.recipient, subject=subject, body=body, from_email=message.sender)
+    except ApiError as exc:
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=exc, countdown=5 * 2 ** self.request.retries)
+        logger.warning("Email %s failed after retries: %s", message_id, exc.message)
+        fail_message(message.pk, "provider_unreachable")
+        return
+
+    now = timezone.now()
+    Message.objects.filter(pk=message.pk, status=Message.Status.QUEUED).update(
+        status=Message.Status.DELIVERED, provider="smtp", sent_at=now, delivered_at=now,
+    )
 
 
 @shared_task

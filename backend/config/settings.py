@@ -200,6 +200,26 @@ ARKESEL_API_KEY = os.environ.get("ARKESEL_API_KEY", "")
 ARKESEL_SMS_URL = os.environ.get("ARKESEL_SMS_URL", "https://sms.arkesel.com/api/v2/sms/send")
 ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", False)  # accepted but not delivered or billed
 
+# Email OTP and platform email (sign-up codes never use this - those are always SMS).
+# EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER/PASSWORD, EMAIL_PORT and
+# EMAIL_USE_TLS are Django's own settings, so any SMTP-speaking provider works
+# (Postmark, SES, Resend, Mailgun, ...) - just point it at their SMTP relay.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+if not DEBUG and EMAIL_BACKEND in {
+    "django.core.mail.backends.console.EmailBackend",
+    "django.core.mail.backends.locmem.EmailBackend",
+    "django.core.mail.backends.dummy.EmailBackend",
+}:
+    raise ImproperlyConfigured("EMAIL_BACKEND=console never sends real email. Use a real provider when DJANGO_DEBUG is off.")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = env_int("EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"{APP_NAME} <verify@{APP_NAME.lower()}.example>")
+# What an email OTP costs, in pesewas. Free by default: there's no telco to pay.
+EMAIL_OTP_PRICE_PESEWAS = env_int("EMAIL_OTP_PRICE_PESEWAS", 0)
+
 # Wallet top-ups. Paystack's hosted checkout page takes the payment, so card and
 # Mobile Money details never touch this server. Use the secret key from
 # Paystack's dashboard (sk_test_... while testing, sk_live_... for real money).
@@ -238,34 +258,7 @@ STORAGES = {
 }
 
 
-UNFOLD = {
-    "SITE_TITLE": "Portal Admin",
-    "SITE_HEADER": "Portal Admin",
-    "SITE_SYMBOL": "storefront",
-    "SHOW_HISTORY": True,
-    "SHOW_VIEW_ON_SITE": True,
-    "ENVIRONMENT": "dashboard.utils.environment_callback",
-    "DASHBOARD_CALLBACK": "dashboard.utils.dashboard_callback",
-    "COLORS": {
-        "primary": {
-            "50": "oklch(97.7% 0.014 308.299)",
-            "100": "oklch(94.6% 0.033 307.174)",
-            "200": "oklch(90.2% 0.060 306.703)",
-            "300": "oklch(82.7% 0.108 306.383)",
-            "400": "oklch(72.2% 0.177 305.504)",
-            "500": "oklch(62.7% 0.233 303.900)",
-            "600": "oklch(55.8% 0.252 302.321)",
-            "700": "oklch(49.6% 0.237 301.924)",
-            "800": "oklch(43.8% 0.198 303.724)",
-            "900": "oklch(38.1% 0.166 304.987)",
-            "950": "oklch(29.1% 0.143 302.717)",
-        },
-    },
-    "SIDEBAR": {
-        "show_search": True,
-        "show_all_applications": True,
-    },
-}
+
 
 # ---------------------------------------------------------------------------
 # Production hardening

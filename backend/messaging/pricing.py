@@ -28,8 +28,24 @@ def resolve_sender(org, requested: str | None) -> str:
     if not requested:
         return settings.DEFAULT_SENDER_ID
     approved = SenderId.objects.filter(
-        organization=org, name=requested, status=SenderId.Status.APPROVED
+        organization=org, channel=SenderId.Channel.SMS, name=requested, status=SenderId.Status.APPROVED
     ).exists()
     if not approved:
         raise ApiError("sender_not_approved", "That sender ID isn't approved for this account.")
     return requested
+
+
+def resolve_email_sender(org, requested_name: str | None) -> str:
+    """Returns the email "From" header: always the platform's own verified
+    address, with an approved display name in front of it if one was asked
+    for. The address itself is never customer-controlled - sending from an
+    unverified domain fails SPF/DKIM checks and looks like spoofing."""
+    if not requested_name:
+        return settings.DEFAULT_FROM_EMAIL
+    approved = SenderId.objects.filter(
+        organization=org, channel=SenderId.Channel.EMAIL, name=requested_name, status=SenderId.Status.APPROVED
+    ).exists()
+    if not approved:
+        raise ApiError("sender_not_approved", "That sender name isn't approved for this account.")
+    address = settings.DEFAULT_FROM_EMAIL.split("<")[-1].rstrip(">").strip()
+    return f"{requested_name} <{address}>"

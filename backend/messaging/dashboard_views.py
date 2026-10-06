@@ -18,7 +18,7 @@ from common.pagination import PagePagination
 
 from .api_auth import create_api_key
 from .customers import send_customer_message
-from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, OtpRequest, Wallet
+from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, OtpRequest, SenderId, Wallet
 from .pricing import price_for_segments
 from .serializers import (
     ApiKeyCreateSerializer,
@@ -29,11 +29,14 @@ from .serializers import (
     MessageSerializer,
     MessageTemplateSerializer,
     MessageTemplateWriteSerializer,
+    SenderIdCreateSerializer,
+    SenderIdSerializer,
     SendCustomerMessageSerializer,
 )
 from .templates import CATEGORIES, SUGGESTED_TEMPLATES
 
 MAX_ACTIVE_KEYS = 10
+MAX_PENDING_SENDER_IDS = 10
 
 
 class OrgRequiredMixin:
@@ -302,4 +305,38 @@ class TemplateDetailView(OrgRequiredMixin, APIView):
 
     def delete(self, request, pk):
         self._get(pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Sender IDs
+# ---------------------------------------------------------------------------
+class SenderIdListCreateView(OrgRequiredMixin, APIView):
+    def get(self, request):
+        org = self.org()
+        sender_ids = SenderId.objects.filter(organization=org).order_by("-created_at")
+        return Response({"results": SenderIdSerializer(sender_ids, many=True).data})
+
+    def post(self, request):
+        org = self.org()
+        serializer = SenderIdCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        pending = SenderId.objects.filter(organization=org, status=SenderId.Status.PENDING).count()
+        if pending >= MAX_PENDING_SENDER_IDS:
+            raise ApiError("sender_id_limit", f"You can have at most {MAX_PENDING_SENDER_IDS} pending requests at once.")
+        if SenderId.objects.filter(organization=org, channel=data["channel"], name=data["name"]).exists():
+            raise ApiError("sender_id_exists", "You've already requested this sender ID.", 409)
+
+        sender_id = SenderId.objects.create(organization=org, **data)
+        return Response(SenderIdSerializer(sender_id).data, status=status.HTTP_201_CREATED)
+
+
+class SenderIdDetailView(OrgRequiredMixin, APIView):
+    def delete(self, request, pk):
+        sender_id = get_object_or_404(SenderId, pk=pk, organization=self.org())
+        if sender_id.status != SenderId.Status.PENDING:
+            raise ApiError("not_pending", "Only a pending request can be withdrawn.")
+        sender_id.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

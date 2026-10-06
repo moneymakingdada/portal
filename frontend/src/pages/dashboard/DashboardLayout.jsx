@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import DashboardTopbar from "../../components/DashboardTopbar";
 import Logo from "../../components/Logo";
-import { IconApiKeys, IconBook, IconCart, IconClose, IconEdit, IconMenu, IconMessage, IconOverview, IconUsers, IconWallet } from "../../components/icons";
+import { IconApiKeys, IconBook, IconCart, IconClose, IconEdit, IconMenu, IconMessage, IconOverview, IconTag, IconUsers, IconWallet } from "../../components/icons";
 import "../../styles/dashboard.css";
 
 const NAV = [
   { to: "/dashboard", label: "Overview", icon: IconOverview, end: true },
   { to: "/dashboard/customers", label: "Customers", icon: IconUsers },
+  { to: "/dashboard/sender-ids", label: "Sender IDs", icon: IconTag },
   { to: "/dashboard/templates", label: "Templates", icon: IconEdit },
   { to: "/dashboard/api-keys", label: "API keys", icon: IconApiKeys },
   { to: "/dashboard/messages", label: "Messages", icon: IconMessage },

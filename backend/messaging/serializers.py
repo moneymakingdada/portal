@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from common.phone import InvalidPhone, normalize_gh_number
 
-from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SmsPlan
+from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SenderId, SmsPlan
 
 
 class ApiKeySerializer(serializers.ModelSerializer):
@@ -127,4 +127,30 @@ class TopupStartSerializer(serializers.Serializer):
     def validate(self, attrs):
         if ("plan_id" in attrs) == ("amount" in attrs):
             raise serializers.ValidationError("Provide either plan_id or amount.")
+        return attrs
+
+
+# ---------------------------------------------------------------------------
+# Sender IDs
+# ---------------------------------------------------------------------------
+class SenderIdSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SenderId
+        fields = ["id", "channel", "name", "purpose", "status", "rejection_reason", "created_at"]
+        read_only_fields = fields
+
+
+class SenderIdCreateSerializer(serializers.Serializer):
+    channel = serializers.ChoiceField(choices=["sms", "email"], default="sms")
+    name = serializers.CharField(min_length=1, max_length=160)
+    purpose = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        name = attrs["name"].strip()
+        if attrs["channel"] == "sms":
+            if not name.replace(" ", "").isalnum() or len(name) > 11:
+                raise serializers.ValidationError(
+                    {"name": "An SMS sender ID must be 11 characters or fewer, letters and numbers only."}
+                )
+        attrs["name"] = name
         return attrs

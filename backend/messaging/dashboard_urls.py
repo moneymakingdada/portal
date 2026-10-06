@@ -20,4 +20,6 @@ urlpatterns = [
     path("customers/<uuid:pk>/messages", views.CustomerMessagesView.as_view()),
     path("templates", views.TemplateListCreateView.as_view()),
     path("templates/<uuid:pk>", views.TemplateDetailView.as_view()),
+    path("sender-ids", views.SenderIdListCreateView.as_view()),
+    path("sender-ids/<int:pk>", views.SenderIdDetailView.as_view()),
 ]

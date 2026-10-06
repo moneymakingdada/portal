@@ -27,9 +27,9 @@ class OrganizationAdmin(UnfoldModelAdmin):
 
 @admin.register(SenderId)
 class SenderIdAdmin(UnfoldModelAdmin):
-    """Approve or reject sender IDs here after the telco decides."""
-    list_display = ("name", "organization", "status", "created_at")
-    list_filter = ("status",)
+    """Approve or reject a sender ID or email display name request here."""
+    list_display = ("name", "channel", "organization", "status", "created_at")
+    list_filter = ("status", "channel")
     list_editable = ("status",)
     search_fields = ("name", "organization__name")
 

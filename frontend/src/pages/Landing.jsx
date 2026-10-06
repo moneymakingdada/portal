@@ -11,8 +11,8 @@ const GROUPS = [
     title: "Sending",
     items: [
       { name: "One-time codes (OTP API)", status: "available", text: "Send a code to a phone number and check what the user types. Codes work once, expire on the timer you set, and lock after three wrong tries." },
-      { name: "SMS API", status: "soon", text: "Send any message (receipts, alerts, reminders) through the same key and wallet." },
-      { name: "Email verification", status: "soon", text: "The same send-and-check flow for email addresses." },
+      { name: "Email verification", status: "available", text: "The same send-and-check flow for an email address instead of a phone number — same endpoint, channel: \"email\"." },
+      { name: "SMS API", status: "available", text: "Send any message — receipts, alerts, reminders — to one number or many at once, through the same key and wallet." },
     ],
   },
   {
@@ -21,7 +21,7 @@ const GROUPS = [
       { name: "Thank-you, birthday, holiday & welcome messages", status: "available", text: "Message a customer after a sale, or any time you like — a suggested message for each occasion, ready to send or customize." },
       { name: "Automatic birthday messages", status: "available", text: "Turn it on once from your Customers page, and every customer gets your birthday message on their day, no API call needed." },
       { name: "Your own templates", status: "available", text: "Keep the suggested wording, or write your own for any category — it's saved as your default from then on." },
-      { name: "Sender names", status: "soon", text: "Request a name like MYSHOP, up to 11 characters, so messages show who they're from." },
+      { name: "Sender names", status: "available", text: "Request a name like MYSHOP, or a display name for email, from your Sender IDs page. Each request is reviewed before it's approved." },
     ],
   },
   {
@@ -64,7 +64,7 @@ const FAQ = [
   { q: "What happens if a message can't be sent?", a: "It's marked failed in your message log and its cost goes back to your wallet." },
   { q: "How are codes protected?", a: "A code is stored only as a keyed hash, works once, expires after the time you choose (up to 10 minutes) and locks after three wrong attempts. Requests are rate-limited per number, per end-user address and per account." },
   { q: "How do birthday messages work?", a: "Add a customer's birthday, turn on automatic birthday messages from your Customers page, and your birthday template goes out to them once a year without any API call. You can turn it off at any time." },
-  { q: "Can messages show my own sender name?", a: "Not yet. Sender names are coming; until then messages go out under the platform's default name." },
+  { q: "Can messages show my own sender name?", a: "Yes. Request an SMS sender ID or an email display name from your Sender IDs page. Each is reviewed before it can be used — most requests are approved within a day — and you can have one of each." },
 ];
 
 function Status({ value }) {

@@ -12,7 +12,7 @@ const FAILURE_REASONS = {
 };
 
 const CATEGORY_LABELS = {
-  otp: "OTP", thank_you: "Thank you", birthday: "Birthday", holiday: "Holiday",
+  otp: "OTP", sms: "SMS", thank_you: "Thank you", birthday: "Birthday", holiday: "Holiday",
   welcome: "Welcome", custom: "Custom",
 };
 
@@ -27,6 +27,7 @@ const STATUS_FILTERS = [
 const CATEGORY_FILTERS = [
   { value: "", label: "All types" },
   { value: "otp", label: "OTP" },
+  { value: "sms", label: "SMS" },
   { value: "thank_you", label: "Thank you" },
   { value: "birthday", label: "Birthday" },
   { value: "holiday", label: "Holiday" },
