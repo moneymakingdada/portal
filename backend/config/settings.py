@@ -46,7 +46,7 @@ if DEBUG:
 elif not SECRET_KEY or not OTP_HMAC_KEY:
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY and OTP_HMAC_KEY when DJANGO_DEBUG is off.")
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1", "portal-ob4u.vercel.app" if DEBUG else "")
 
 # The React app is served from the same origin as /api (Vite proxies /api in
 # development; a reverse proxy does it in production), so no CORS is needed.
