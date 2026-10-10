@@ -10,9 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from common.redis import get_redis
-from common.testing import (
-    RedisAPITestCase, RedisAPITransactionTestCase, api_client, make_account,
-)
+from common.testing import RedisAPITestCase, api_client, make_account
 
 from .ledger import InsufficientFunds, credit_topup, debit_message, post_entry, refund_message
 from .models import ApiKey, LedgerEntry, Message, Organization, OtpRequest, Payment, SenderId, Wallet
@@ -355,39 +353,39 @@ class OtpApiTests(RedisAPITestCase):
         # ...and the attempt did not burn the owner's code.
         self.assertEqual(self.verify(request_id, code).data, {"verified": True})
 
-    def test_provider_rejection_fails_the_message_and_refunds(self):
+    def test_provider_rejection_is_reported_immediately_not_as_a_fake_success(self):
+        # Sending is synchronous now: a rejected send is a failed API call,
+        # not a 201 that quietly fails somewhere in the background later.
         MemoryProvider.behavior = "reject"
-        with self.captureOnCommitCallbacks(execute=True):
-            self.assertEqual(self.send().status_code, 201)
+        res = self.send()
+        self.assertEqual(res.status_code, 502)
+        self.assertEqual(res.data["error"]["code"], "send_unavailable")
         message = Message.objects.get()
         self.assertEqual(message.status, Message.Status.FAILED)
         self.assertEqual(message.error_code, "provider_rejected")
         self.assertEqual(balance(self.org), 100)
         self.assertEqual(LedgerEntry.objects.filter(kind=LedgerEntry.Kind.REFUND).count(), 1)
+        # ...and the cooldown is cleared, so the very next call can succeed
+        # immediately instead of waiting out a cooldown for a code that
+        # never went anywhere.
+        self.assertEqual(get_redis().keys("otp:*"), [])
+        MemoryProvider.behavior = "ok"
+        self.assertEqual(self.send().status_code, 201)
 
-    def test_provider_outage_retries_then_fails_and_refunds(self):
+    def test_provider_outage_fails_immediately_and_refunds(self):
         MemoryProvider.behavior = "transient"
-        with self.captureOnCommitCallbacks(execute=True):
-            self.send()
+        res = self.send()
+        self.assertEqual(res.status_code, 502)
+        self.assertEqual(res.data["error"]["code"], "send_unavailable")
         message = Message.objects.get()
         self.assertEqual(message.status, Message.Status.FAILED)
         self.assertEqual(message.error_code, "provider_unreachable")
         self.assertEqual(balance(self.org), 100)
 
-
-class OtpQueueFailureTests(RedisAPITransactionTestCase):
-    """Needs real commits, so the after-commit hook runs inside the request."""
-
-    def test_when_the_task_queue_is_down_the_customer_is_refunded_and_told(self):
-        _, org, _, raw = make_account(balance=100)
-        with mock.patch("messaging.tasks.send_sms.delay", side_effect=RuntimeError("broker down")):
-            res = api_client(raw).post("/api/v1/otp/send", {"to": PHONE}, format="json")
-        self.assertEqual(res.status_code, 503)
-        self.assertEqual(res.data["error"]["code"], "sms_unavailable")
-        message = Message.objects.get()
-        self.assertEqual((message.status, message.error_code), (Message.Status.FAILED, "queue_unavailable"))
-        self.assertEqual(balance(org), 100)
-        self.assertEqual(get_redis().keys("otp:*"), [])     # the code can't be guessed for a message never sent
+    def test_a_failed_send_never_leaves_a_guessable_code_behind(self):
+        MemoryProvider.behavior = "reject"
+        self.send()
+        self.assertEqual(get_redis().keys("otp:*"), [])
 
 
 # ---------------------------------------------------------------------------

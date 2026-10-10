@@ -5,7 +5,7 @@ REDIS_URL at a database you care about.
 """
 import os
 
-os.environ.setdefault("DJANGO_DEBUG", "True")
+os.environ.setdefault("DJANGO_DEBUG", "False")
 os.environ.setdefault("DJANGO_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("OTP_HMAC_KEY", "test-otp-hmac-key")
 os.environ["SMS_BACKEND"] = "memory"

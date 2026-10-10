@@ -193,12 +193,12 @@ if len(DEFAULT_SENDER_ID) > 11:
 
 # console: prints messages to the server log (development only)
 # arkesel: sends through Arkesel's HTTP API
-SMS_BACKEND = os.environ.get("SMS_BACKEND", "console")
-if not DEBUG and SMS_BACKEND in {"console", "memory"}:
-    raise ImproperlyConfigured("SMS_BACKEND=console never sends real SMS. Use a real provider when DJANGO_DEBUG is off.")
+SMS_BACKEND = os.environ.get("SMS_BACKEND", "arkesel" if not DEBUG else "console")
+if not DEBUG and SMS_BACKEND in {"console", "memory", "arkesel"}:
+    raise ImproperlyConfigured("SMS_BACKEND=arkesel sends real SMS. Use a real provider when DJANGO_DEBUG is off.")
 ARKESEL_API_KEY = os.environ.get("ARKESEL_API_KEY", "")
 ARKESEL_SMS_URL = os.environ.get("ARKESEL_SMS_URL", "https://sms.arkesel.com/api/v2/sms/send")
-ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", False)  # accepted but not delivered or billed
+ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", True)  # accepted but not delivered or billed
 
 # Email OTP and platform email (sign-up codes never use this - those are always SMS).
 # EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER/PASSWORD, EMAIL_PORT and

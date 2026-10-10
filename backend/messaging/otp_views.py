@@ -4,39 +4,22 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .api_auth import ApiKeyAuthentication
-from .otp_service import CHANNELS, send_otp, verify_otp
-
-SMS_TEMPLATE_MAX = 160    # keeps an OTP SMS to one segment, matching the original design
-EMAIL_TEMPLATE_MAX = 2000
-SMS_SENDER_MAX = 11       # the hard limit SMS sender IDs are approved at
-EMAIL_SENDER_MAX = 60     # a display name, not an address - this is just a sanity cap
+from .otp_service import send_otp, verify_otp
 
 
 class SendOtpSerializer(serializers.Serializer):
-    to = serializers.CharField(max_length=254)                                # phone or email
-    channel = serializers.ChoiceField(choices=CHANNELS, default="sms")
+    to = serializers.CharField(max_length=32)
     purpose = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
     length = serializers.IntegerField(min_value=4, max_value=8, default=6)
     ttl = serializers.IntegerField(min_value=60, max_value=600, default=300)   # seconds
-    sender_id = serializers.CharField(max_length=EMAIL_SENDER_MAX, required=False)
-    template = serializers.CharField(max_length=EMAIL_TEMPLATE_MAX, required=False)   # must contain {code}
+    sender_id = serializers.CharField(max_length=11, required=False)
+    template = serializers.CharField(max_length=160, required=False)          # must contain {code}
     client_ip = serializers.IPAddressField(required=False)                    # the end user's IP
 
-    def validate(self, attrs):
-        is_email = attrs.get("channel") == "email"
-        template = attrs.get("template")
-        if template is not None:
-            if "{code}" not in template:
-                raise serializers.ValidationError({"template": "template must contain {code}"})
-            limit = EMAIL_TEMPLATE_MAX if is_email else SMS_TEMPLATE_MAX
-            if len(template) > limit:
-                raise serializers.ValidationError(
-                    {"template": f"template must be {limit} characters or fewer for {attrs.get('channel')}."}
-                )
-        sender_id = attrs.get("sender_id")
-        if sender_id and not is_email and len(sender_id) > SMS_SENDER_MAX:
-            raise serializers.ValidationError({"sender_id": f"sender_id must be {SMS_SENDER_MAX} characters or fewer for sms."})
-        return attrs
+    def validate_template(self, value):
+        if "{code}" not in value:
+            raise serializers.ValidationError("template must contain {code}")
+        return value
 
 
 class VerifyOtpSerializer(serializers.Serializer):
@@ -58,7 +41,6 @@ class SendOtpView(OtpBaseView):
             org=request.user.organization,
             api_key=request.auth,
             to=data["to"],
-            channel=data["channel"],
             purpose=data["purpose"],
             length=data["length"],
             ttl=data["ttl"],
