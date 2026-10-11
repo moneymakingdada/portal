@@ -1,96 +1,97 @@
-# Exported from Render on 2026-10-11T23:33:02Z
+# Exported from Render on 2026-10-11
 version: "1"
+
 projects:
-- name: Project 2
-  environments:
-  - name: Production
-    services:
-    - type: web
-      name: portal
-      runtime: python
-      repo: https://github.com/moneymakingdada/portal
-      plan: free
-      envVars:
-      - key: FRONTEND_URL
-        sync: false
-      - key: CSRF_TRUSTED_ORIGINS
-        sync: false
-      - key: PAYSTACK_SECRET_KEY
-        sync: false
-      - key: SIGNUP_SMS_DAILY_CAP
-        sync: false
-      - key: DJANGO_ALLOWED_HOSTS
-        sync: false
-      - key: TRUSTED_PROXY_COUNT
-        sync: false
-      - key: DEFAULT_PRICE_PER_SEGMENT_PESEWAS
-        sync: false
-      - key: SIGNUP_BONUS_PESEWAS
-        sync: false
-      - key: TOPUP_MAX_PESEWAS
-        sync: false
-      - key: TOPUP_MIN_PESEWAS
-        sync: false
-      - key: BACKEND_URL
-        sync: false
-      - key: ARKESEL_DLR_SECRET
-        sync: false
-      - key: ARKESEL_SANDBOX
-        sync: false
-      - key: ARKESEL_API_KEY
-        sync: false
-      - key: SMS_BACKEND
-        sync: false
-      - key: DEFAULT_SENDER_ID
-        sync: false
-      - key: APP_NAME
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: portal-db
-          property: connectionString
-      - key: OTP_HMAC_KEY
-        sync: false
-      - key: DJANGO_SECRET_KEY
-        sync: false
-      - key: DJANGO_DEBUG
-        sync: false
-      region: oregon
-      buildCommand: pip install -r requirements.txt
-      startCommand: gunicorn config.wsgi:application
-      autoDeployTrigger: commit
-      rootDir: backend/
-    databases:
-    - name: portal-db
-      databaseName: portal_jg3m
-      user: portal_jg3m_user
-      plan: free
-      region: oregon
-      ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-      postgresMajorVersion: "18"
+  - name: Project 2
+    environments:
+      - name: Production
+        services:
+          # Django backend
+          - type: web
+            name: portal
+            runtime: python
+            repo: https://github.com/moneymakingdada/portal
+            plan: free
+            region: oregon
+            rootDir: backend
+            buildCommand: pip install -r requirements.txt
+            startCommand: gunicorn config.wsgi:application
+            autoDeployTrigger: commit
+            envVars:
+              - key: FRONTEND_URL
+                sync: false
+              - key: CSRF_TRUSTED_ORIGINS
+                sync: false
+              - key: PAYSTACK_SECRET_KEY
+                sync: false
+              - key: SIGNUP_SMS_DAILY_CAP
+                sync: false
+              - key: DJANGO_ALLOWED_HOSTS
+                sync: false
+              - key: TRUSTED_PROXY_COUNT
+                sync: false
+              - key: DEFAULT_PRICE_PER_SEGMENT_PESEWAS
+                sync: false
+              - key: SIGNUP_BONUS_PESEWAS
+                sync: false
+              - key: TOPUP_MAX_PESEWAS
+                sync: false
+              - key: TOPUP_MIN_PESEWAS
+                sync: false
+              - key: BACKEND_URL
+                sync: false
+              - key: ARKESEL_DLR_SECRET
+                sync: false
+              - key: ARKESEL_SANDBOX
+                sync: false
+              - key: ARKESEL_API_KEY
+                sync: false
+              - key: SMS_BACKEND
+                sync: false
+              - key: DEFAULT_SENDER_ID
+                sync: false
+              - key: APP_NAME
+                sync: false
+              - key: REDIS_URL
+                sync: false
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: portal-db
+                  property: connectionString
+              - key: OTP_HMAC_KEY
+                sync: false
+              - key: DJANGO_SECRET_KEY
+                sync: false
+              - key: DJANGO_DEBUG
+                sync: false
 
+          # React/Vite frontend as a Render Static Site
+          - type: web
+            name: portal-frontend
+            runtime: static
+            repo: https://github.com/moneymakingdada/portal
+            branch: main
+            rootDir: frontend
+            buildCommand: npm install && npm run build
+            staticPublishPath: ./dist
+            routes:
+              # Send API requests to the Django backend
+              - type: rewrite
+                source: /api/*
+                destination: https://portal-e8k3.onrender.com/api/$1
 
-  # The frontend, as a Render Static Site - an alternative to deploying
-  # frontend/ on Vercel. Same reasoning as vercel.json: this app is built
-  # same-origin on purpose (no CORS, cookies just work), so the rewrite
-  # below proxies /api/* straight through to portal-backend instead of
-  # sending the browser to a different domain. A static site also has no
-  # free-tier spin-down the way portal-backend does, since there's no
-  # process to sleep - it's just files served from Render's CDN.
-  - type: web
-    name: portal-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: "npm install && npm run build"
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://portal-e8k3.onrender.com/api/*
-      - type: rewrite
-        source: /*
-        destination: /index.html
+              # React Router fallback
+              - type: rewrite
+                source: /*
+                destination: /index.html
+
+        databases:
+          - name: portal-db
+            databaseName: portal_jg3m
+            user: portal_jg3m_user
+            plan: free
+            region: oregon
+            postgresMajorVersion: "18"
+            ipAllowList:
+              - source: 0.0.0.0/0
+                description: everywhere
