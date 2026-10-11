@@ -1,14 +1,18 @@
-# Render blueprint for the Django backend: web process, Celery worker, Celery
-# beat (birthday automation), Postgres, and Redis - everything Celery needs
-# that Vercel can't run (Vercel's serverless functions have no concept of a
-# persistent background worker). Deploy this on Render; deploy only
-# frontend/ on Vercel. See README "Deploying" for the full walkthrough.
+# Render blueprint for the Django backend: web process, a Celery worker
+# (with beat's scheduler embedded in it - see the comment on that service),
+# Postgres, and Redis - everything Celery needs that Vercel can't run
+# (Vercel's serverless functions have no concept of a persistent background
+# worker). Deploy this on Render; deploy only frontend/ on Vercel. See
+# README "Deploying" for the full walkthrough.
 #
 # Usage: push this repo, then in the Render dashboard choose
 # New -> Blueprint and point it at backend/render.yaml. Render creates all
 # four resources below together and wires DATABASE_URL/REDIS_URL
 # automatically. You still need to fill in the envVars marked sync: false
 # (API keys, your live domains) in the dashboard after the first deploy.
+#
+# Cost: Postgres, Key Value, and the web service are free; the worker is
+# not (Render has no free Background Worker tier) - budget ~$7/mo for it.
 
 databases:
   - name: portal-db
@@ -80,33 +84,23 @@ services:
           name: portal-redis
           property: connectionString
 
+  # Background Worker is not a free compute type on Render - only Web
+  # Services, Postgres, and Key Value are (see README "Deploying"). A
+  # worker needs at least the cheapest paid instance type, so this is one
+  # worker, not two: -B runs Celery beat's scheduler as a thread inside the
+  # same worker process instead of its own service, which is the standard
+  # way to avoid paying for (and running) a second always-on process at
+  # this scale. The tradeoff is the usual one for embedded beat - don't
+  # scale numInstances past 1 here, or birthday messages would fire once
+  # per running instance instead of once.
   - type: worker
     name: portal-celery-worker
     runtime: python
-    plan: free
+    plan: 0.5c-512mb   # cheapest paid worker tier (~$7/mo) - free doesn't exist for this service type
+    numInstances: 1
     rootDir: backend
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A config worker -l info"
-    envVars:
-      - fromGroup: portal-shared
-      - key: DATABASE_URL
-        fromDatabase:
-          name: portal-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: portal-redis
-          property: connectionString
-
-  - type: worker
-    name: portal-celery-beat
-    runtime: python
-    plan: free
-    rootDir: backend
-    numInstances: 1   # exactly one beat scheduler - never scale this one up
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A config beat -l info"
+    startCommand: "celery -A config worker -B -l info"
     envVars:
       - fromGroup: portal-shared
       - key: DATABASE_URL
