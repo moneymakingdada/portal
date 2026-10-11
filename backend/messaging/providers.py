@@ -81,6 +81,14 @@ class ArkeselProvider(BaseProvider):
         }
         if settings.ARKESEL_SANDBOX:
             payload["sandbox"] = True
+        if settings.BACKEND_URL and settings.ARKESEL_DLR_SECRET:
+            # Ask Arkesel to report back here once the carrier actually
+            # confirms (or fails) delivery, instead of relying only on
+            # whatever's configured in the Arkesel dashboard. Harmless if
+            # Arkesel ignores an unrecognised field.
+            payload["callback_url"] = (
+                f"{settings.BACKEND_URL}/api/webhooks/arkesel/{settings.ARKESEL_DLR_SECRET}"
+            )
         try:
             response = requests.post(
                 settings.ARKESEL_SMS_URL, json=payload, headers={"api-key": api_key}, timeout=(3.05, 10)

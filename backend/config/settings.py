@@ -102,14 +102,11 @@ TEMPLATES = [
 # ---------------------------------------------------------------------------
 # PostgreSQL in real use (DATABASE_URL), SQLite only as a zero-config fallback.
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'portal'),
-        'USER': os.environ.get('DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'Langabird1@'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=60,
+        conn_health_checks=True,
+    )
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -193,12 +190,38 @@ if len(DEFAULT_SENDER_ID) > 11:
 
 # console: prints messages to the server log (development only)
 # arkesel: sends through Arkesel's HTTP API
-SMS_BACKEND = os.environ.get("SMS_BACKEND", "arkesel" if not DEBUG else "console")
-if not DEBUG and SMS_BACKEND in {"console", "memory", "arkesel"}:
-    raise ImproperlyConfigured("SMS_BACKEND=arkesel sends real SMS. Use a real provider when DJANGO_DEBUG is off.")
-ARKESEL_API_KEY = os.environ.get("ARKESEL_API_KEY", "")
-ARKESEL_SMS_URL = os.environ.get("ARKESEL_SMS_URL", "https://sms.arkesel.com/api/v2/sms/send")
-ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", True)  # accepted but not delivered or billed
+
+SMS_BACKEND = os.environ.get(
+    "SMS_BACKEND",
+    "console" if DEBUG else "arkesel"
+).strip().lower()
+
+if not DEBUG and SMS_BACKEND in {"console", "memory"}:
+    raise ImproperlyConfigured(
+        "Production must use a real SMS provider."
+    )
+
+
+ARKESEL_API_KEY = os.environ.get("ARKESEL_API_KEY", "").strip()
+
+ARKESEL_SMS_URL = os.environ.get(
+    "ARKESEL_SMS_URL",
+    "https://sms.arkesel.com/api/v2/sms/send"
+)
+
+ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", False)
+
+# Delivery reports: Arkesel's send API only confirms "accepted", never
+# "actually reached the phone" - that only comes later, as a callback to this
+# server. ARKESEL_DLR_SECRET gates that callback URL (Arkesel has no request
+# signature, so the secret path segment is the only proof it's really them);
+# BACKEND_URL lets us hand Arkesel the full callback URL on every send instead
+# of relying solely on whatever's configured in the Arkesel dashboard. Leave
+# either unset and delivery reports are simply not requested/accepted -
+# messages still send, they just stay at "sent" instead of ever reaching
+# "delivered". See messaging/webhooks.py and the README for setup.
+ARKESEL_DLR_SECRET = os.environ.get("ARKESEL_DLR_SECRET", "")
+BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
 
 # Email OTP and platform email (sign-up codes never use this - those are always SMS).
 # EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER/PASSWORD, EMAIL_PORT and

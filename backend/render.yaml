@@ -1,0 +1,120 @@
+# Render blueprint for the Django backend: web process, Celery worker, Celery
+# beat (birthday automation), Postgres, and Redis - everything Celery needs
+# that Vercel can't run (Vercel's serverless functions have no concept of a
+# persistent background worker). Deploy this on Render; deploy only
+# frontend/ on Vercel. See README "Deploying" for the full walkthrough.
+#
+# Usage: push this repo, then in the Render dashboard choose
+# New -> Blueprint and point it at backend/render.yaml. Render creates all
+# four resources below together and wires DATABASE_URL/REDIS_URL
+# automatically. You still need to fill in the envVars marked sync: false
+# (API keys, your live domains) in the dashboard after the first deploy.
+
+databases:
+  - name: portal-db
+    plan: free
+    databaseName: portal
+    user: portal
+
+envVarGroups:
+  - name: portal-shared
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: OTP_HMAC_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: Portal
+      - key: DEFAULT_SENDER_ID
+        value: Portal
+      - key: SMS_BACKEND
+        value: arkesel
+      - key: ARKESEL_API_KEY
+        sync: false   # paste from your Arkesel dashboard
+      - key: ARKESEL_SANDBOX
+        value: "False"
+      - key: ARKESEL_DLR_SECRET
+        generateValue: true
+      - key: BACKEND_URL
+        sync: false   # this service's own public URL, e.g. https://portal-backend.onrender.com
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false   # e.g. portal-backend.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false   # e.g. https://your-app.vercel.app,https://portal-backend.onrender.com
+      - key: FRONTEND_URL
+        sync: false   # e.g. https://your-app.vercel.app (Paystack redirects here after checkout)
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: TRUSTED_PROXY_COUNT
+        value: "2"    # Vercel's edge proxy, then Render's own load balancer -
+                       # two hops between the browser and gunicorn. Verify this
+                       # for real after deploying (see README): get it wrong
+                       # and IP-based rate limits quietly key off the wrong
+                       # address instead of erroring.
+
+services:
+  - type: keyvalue
+    name: portal-redis
+    plan: free
+    ipAllowList: []   # internal connections only - the other services here, nothing external
+
+  - type: web
+    name: portal-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "gunicorn config.wsgi:application"
+    healthCheckPath: /api/health
+    envVars:
+      - fromGroup: portal-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: portal-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: portal-redis
+          property: connectionString
+
+  - type: worker
+    name: portal-celery-worker
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A config worker -l info"
+    envVars:
+      - fromGroup: portal-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: portal-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: portal-redis
+          property: connectionString
+
+  - type: worker
+    name: portal-celery-beat
+    runtime: python
+    plan: free
+    rootDir: backend
+    numInstances: 1   # exactly one beat scheduler - never scale this one up
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A config beat -l info"
+    envVars:
+      - fromGroup: portal-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: portal-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: portal-redis
+          property: connectionString
