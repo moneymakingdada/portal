@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://YOUR-BACKEND-HOST.onrender.com/api/:path*"
+      "destination": "https://portal-e8k3.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
