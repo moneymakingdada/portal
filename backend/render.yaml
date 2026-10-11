@@ -1,92 +1,78 @@
-# Render blueprint for the whole app: the Django backend, the React
-# frontend as a static site, a Celery worker (with beat's scheduler
-# embedded in it - see the comment on that service), Postgres, and Redis -
-# everything running on Render, nothing on Vercel. (Deploying the frontend
-# on Vercel instead is also supported - see frontend/vercel.json and the
-# README's Vercel steps - but you only need one or the other, not both.)
-# See README "Deploying" for the full walkthrough.
-#
-# Usage: push this repo, then in the Render dashboard choose
-# New -> Blueprint and point it at backend/render.yaml. Render creates all
-# five resources below together and wires DATABASE_URL/REDIS_URL
-# automatically. You still need to fill in the envVars marked sync: false
-# (API keys, your live domains) in the dashboard after the first deploy.
-#
-# Cost: Postgres, Key Value, the backend web service, and the frontend
-# static site are all free; the worker is not (Render has no free
-# Background Worker tier) - budget ~$7/mo for it.
-
-databases:
-  - name: portal-db
-    plan: free
-    databaseName: portal
-    user: portal
-
-envVarGroups:
-  - name: portal-shared
-    envVars:
-      - key: DJANGO_DEBUG
-        value: "False"
-      - key: DJANGO_SECRET_KEY
-        generateValue: true
-      - key: OTP_HMAC_KEY
-        generateValue: true
-      - key: APP_NAME
-        value: Portal
-      - key: DEFAULT_SENDER_ID
-        value: Portal
-      - key: SMS_BACKEND
-        value: arkesel
-      - key: ARKESEL_API_KEY
-        sync: false   # paste from your Arkesel dashboard
-      - key: ARKESEL_SANDBOX
-        value: "False"
-      - key: ARKESEL_DLR_SECRET
-        generateValue: true
-      - key: BACKEND_URL
-        sync: false   # this service's own public URL, e.g. https://portal-backend.onrender.com
-      - key: DJANGO_ALLOWED_HOSTS
-        sync: false   # e.g. portal-backend.onrender.com
-      - key: CSRF_TRUSTED_ORIGINS
-        sync: false   # the frontend's public URL - https://portal-frontend.onrender.com
-                       # if using the Static Site below, or https://your-app.vercel.app
-                       # if deploying frontend/ on Vercel instead
+# Exported from Render on 2026-10-11T23:33:02Z
+version: "1"
+projects:
+- name: Project 2
+  environments:
+  - name: Production
+    services:
+    - type: web
+      name: portal
+      runtime: python
+      repo: https://github.com/moneymakingdada/portal
+      plan: free
+      envVars:
       - key: FRONTEND_URL
-        sync: false   # same value as CSRF_TRUSTED_ORIGINS above (Paystack redirects here after checkout)
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
       - key: PAYSTACK_SECRET_KEY
         sync: false
+      - key: SIGNUP_SMS_DAILY_CAP
+        sync: false
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
       - key: TRUSTED_PROXY_COUNT
-        value: "2"    # one hop for whichever frontend's own rewrite/proxy (Render
-                       # Static Site or Vercel), then Render's own load balancer in
-                       # front of gunicorn. Verify this for real after deploying (see
-                       # README): get it wrong and IP-based rate limits quietly key
-                       # off the wrong address instead of erroring.
-
-services:
-  - type: keyvalue
-    name: portal-redis
-    plan: free
-    ipAllowList: []   # internal connections only - the other services here, nothing external
-
-  - type: web
-    name: portal-backend
-    runtime: python
-    plan: free
-    rootDir: backend
-    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
-    startCommand: "gunicorn config.wsgi:application"
-    healthCheckPath: /api/health
-    envVars:
-      - fromGroup: portal-shared
+        sync: false
+      - key: DEFAULT_PRICE_PER_SEGMENT_PESEWAS
+        sync: false
+      - key: SIGNUP_BONUS_PESEWAS
+        sync: false
+      - key: TOPUP_MAX_PESEWAS
+        sync: false
+      - key: TOPUP_MIN_PESEWAS
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: ARKESEL_DLR_SECRET
+        sync: false
+      - key: ARKESEL_SANDBOX
+        sync: false
+      - key: ARKESEL_API_KEY
+        sync: false
+      - key: SMS_BACKEND
+        sync: false
+      - key: DEFAULT_SENDER_ID
+        sync: false
+      - key: APP_NAME
+        sync: false
+      - key: REDIS_URL
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: portal-db
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: portal-redis
-          property: connectionString
+      - key: OTP_HMAC_KEY
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DJANGO_DEBUG
+        sync: false
+      region: oregon
+      buildCommand: pip install -r requirements.txt
+      startCommand: gunicorn config.wsgi:application
+      autoDeployTrigger: commit
+      rootDir: backend/
+    databases:
+    - name: portal-db
+      databaseName: portal_jg3m
+      user: portal_jg3m_user
+      plan: free
+      region: oregon
+      ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+      postgresMajorVersion: "18"
+
 
   # The frontend, as a Render Static Site - an alternative to deploying
   # frontend/ on Vercel. Same reasoning as vercel.json: this app is built
@@ -108,32 +94,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-
-  # Background Worker is not a free compute type on Render - only Web
-  # Services, Postgres, and Key Value are (see README "Deploying"). A
-  # worker needs at least the cheapest paid instance type, so this is one
-  # worker, not two: -B runs Celery beat's scheduler as a thread inside the
-  # same worker process instead of its own service, which is the standard
-  # way to avoid paying for (and running) a second always-on process at
-  # this scale. The tradeoff is the usual one for embedded beat - don't
-  # scale numInstances past 1 here, or birthday messages would fire once
-  # per running instance instead of once.
-  - type: worker
-    name: portal-celery-worker
-    runtime: python
-    plan: 0.5c-512mb   # cheapest paid worker tier (~$7/mo) - free doesn't exist for this service type
-    numInstances: 1
-    rootDir: backend
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A config worker -B -l info"
-    envVars:
-      - fromGroup: portal-shared
-      - key: DATABASE_URL
-        fromDatabase:
-          name: portal-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: portal-redis
-          property: connectionString
