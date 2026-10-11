@@ -223,25 +223,7 @@ ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", False)
 ARKESEL_DLR_SECRET = os.environ.get("ARKESEL_DLR_SECRET", "")
 BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
 
-# Email OTP and platform email (sign-up codes never use this - those are always SMS).
-# EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER/PASSWORD, EMAIL_PORT and
-# EMAIL_USE_TLS are Django's own settings, so any SMTP-speaking provider works
-# (Postmark, SES, Resend, Mailgun, ...) - just point it at their SMTP relay.
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-if not DEBUG and EMAIL_BACKEND in {
-    "django.core.mail.backends.console.EmailBackend",
-    "django.core.mail.backends.locmem.EmailBackend",
-    "django.core.mail.backends.dummy.EmailBackend",
-}:
-    raise ImproperlyConfigured("EMAIL_BACKEND=console never sends real email. Use a real provider when DJANGO_DEBUG is off.")
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
-EMAIL_PORT = env_int("EMAIL_PORT", 587)
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"{APP_NAME} <verify@{APP_NAME.lower()}.example>")
-# What an email OTP costs, in pesewas. Free by default: there's no telco to pay.
-EMAIL_OTP_PRICE_PESEWAS = env_int("EMAIL_OTP_PRICE_PESEWAS", 0)
+
 
 # Wallet top-ups. Paystack's hosted checkout page takes the payment, so card and
 # Mobile Money details never touch this server. Use the secret key from
