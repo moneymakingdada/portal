@@ -193,7 +193,7 @@ if len(DEFAULT_SENDER_ID) > 11:
 
 SMS_BACKEND = os.environ.get(
     "SMS_BACKEND",
-    "arkesel" if DEBUG else "arkesel"
+    "arkesel" if DEBUG else "console"
 ).strip().lower()
 
 if not DEBUG and SMS_BACKEND in {"console", "memory"}:
