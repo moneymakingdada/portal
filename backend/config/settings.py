@@ -231,7 +231,7 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
 
 # Text the new account owner a welcome message right after sign-up verification
 # succeeds (platform-sent, not billed to their wallet). Failures never block sign-up.
-WELCOME_SMS_ENABLED = env_bool("WELCOME_SMS_ENABLED", True)
+WELCOME_SMS_ENABLED = env_bool("WELCOME_SMS_ENABLED", False)
 
 # Wallet top-ups. Paystack's hosted checkout page takes the payment, so card and
 # Mobile Money details never touch this server. Use the secret key from
