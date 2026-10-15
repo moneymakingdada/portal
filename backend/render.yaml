@@ -14,7 +14,7 @@ projects:
             plan: free
             region: oregon
             rootDir: backend
-            buildCommand: pip install -r requirements.txt
+            buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
             startCommand: gunicorn config.wsgi:application
             autoDeployTrigger: commit
             envVars:
@@ -46,6 +46,8 @@ projects:
                 sync: false
               - key: ARKESEL_API_KEY
                 sync: false
+              - key: DEXATEL_API_KEY
+                sync: false   # only used when SMS_BACKEND=dexatel - paste from the Dexatel dashboard
               - key: SMS_BACKEND
                 sync: false
               - key: DEFAULT_SENDER_ID

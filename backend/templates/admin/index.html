@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+{% load i18n unfold %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+    <div class="flex flex-col gap-6">
+        <div class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-5">
+            {% for kpi in kpis %}
+                {% component "unfold/components/card.html" with href=kpi.href class="gap-1" %}
+                    {% component "unfold/components/text.html" with class="text-subtle flex items-center gap-2" %}
+                        {% component "unfold/components/icon.html" with class="text-base-400 text-[18px]!" %}{{ kpi.icon }}{% endcomponent %}
+                        {{ kpi.title }}
+                    {% endcomponent %}
+                    {% component "unfold/components/title.html" with class="mt-2" %}{{ kpi.value }}{% endcomponent %}
+                    {% component "unfold/components/text.html" with class="mt-1 text-subtle" %}
+                        {% if kpi.attention %}<span class="font-semibold text-red-600 dark:text-red-400">{{ kpi.footer }}</span>{% else %}{{ kpi.footer }}{% endif %}
+                    {% endcomponent %}
+                {% endcomponent %}
+            {% endfor %}
+        </div>
+
+        {% component "unfold/components/card.html" with title="Messages per day" description="Last 14 days, all organizations" %}
+            {% component "unfold/components/chart/bar.html" with data=chart options=chart_options %}{% endcomponent %}
+        {% endcomponent %}
+
+        {% component "unfold/components/card.html" with title="Recent failures" description="Newest failed or expired messages" %}
+            {% component "unfold/components/table.html" with table=failures card_included=1 %}{% endcomponent %}
+        {% endcomponent %}
+    </div>
+{% endblock %}

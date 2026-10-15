@@ -46,13 +46,13 @@ if DEBUG:
 elif not SECRET_KEY or not OTP_HMAC_KEY:
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY and OTP_HMAC_KEY when DJANGO_DEBUG is off.")
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,portal-ob4u.vercel.app,portal-ob4u-apmhad7td-amandelangabird-gmailcoms-projects.vercel.app" if DEBUG else "")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
 
 # The React app is served from the same origin as /api (Vite proxies /api in
 # development; a reverse proxy does it in production), so no CORS is needed.
 CSRF_TRUSTED_ORIGINS = env_list(
     "CSRF_TRUSTED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://portal-ob4u.vercel.app,portal-ob4u-apmhad7td-amandelangabird-gmailcoms-projects.vercel.app" if DEBUG else "",
+    "http://localhost:5173,http://127.0.0.1:5173," if DEBUG else "",
 )
 
 INSTALLED_APPS = [
@@ -211,6 +211,12 @@ ARKESEL_SMS_URL = os.environ.get(
 
 ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", False)
 
+# Dexatel: https://developers.dexatel.com/reference/messages-send. DEFAULT_SENDER_ID
+# doubles as the Dexatel "from" value, so it needs to be a sender name registered
+# with Dexatel too, same as it needs to be registered with Arkesel.
+DEXATEL_API_KEY = os.environ.get("DEXATEL_API_KEY", "")
+DEXATEL_SMS_URL = os.environ.get("DEXATEL_SMS_URL", "https://api.dexatel.com/v1/messages")
+
 # Delivery reports: Arkesel's send API only confirms "accepted", never
 # "actually reached the phone" - that only comes later, as a callback to this
 # server. ARKESEL_DLR_SECRET gates that callback URL (Arkesel has no request
@@ -223,7 +229,9 @@ ARKESEL_SANDBOX = env_bool("ARKESEL_SANDBOX", False)
 ARKESEL_DLR_SECRET = os.environ.get("ARKESEL_DLR_SECRET", "")
 BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
 
-
+# Text the new account owner a welcome message right after sign-up verification
+# succeeds (platform-sent, not billed to their wallet). Failures never block sign-up.
+WELCOME_SMS_ENABLED = env_bool("WELCOME_SMS_ENABLED", True)
 
 # Wallet top-ups. Paystack's hosted checkout page takes the payment, so card and
 # Mobile Money details never touch this server. Use the secret key from
@@ -283,4 +291,88 @@ LOGGING = {
     "formatters": {"simple": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "simple"}},
     "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
+}
+
+
+
+# ---------------------------------------------------------------------------
+# Admin site (django-unfold). Brand colours match the React app: forest green + gold.
+# ---------------------------------------------------------------------------
+from django.templatetags.static import static  # noqa: E402
+from django.urls import reverse_lazy  # noqa: E402
+
+
+def _nav_item(title, icon, model):
+    return {"title": title, "icon": icon, "link": reverse_lazy(f"admin:messaging_{model}_changelist")}
+
+
+# Unfold's login form omits Django's hidden "next" field, so opening /admin/login/
+# directly would otherwise land on the default /accounts/profile/ (a 404) after
+# signing in. Only the admin uses Django's session login; the React app has its own API auth.
+LOGIN_REDIRECT_URL = "/admin/"
+
+UNFOLD = {
+    "SITE_TITLE": f"{APP_NAME} admin",
+    "SITE_HEADER": f"{APP_NAME}",
+    "SITE_SUBHEADER": "Operations",
+    "SITE_URL": "/",
+    "SITE_ICON": lambda request: static("messaging/portal-mark.svg"),
+    "SITE_FAVICONS": [{"rel": "icon", "sizes": "32x32", "type": "image/svg+xml",
+                       "href": lambda request: static("messaging/portal-mark.svg")}],
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "BORDER_RADIUS": "10px",
+    "COLORS": {
+        "primary": {
+            "50": "oklch(97.5% .012 165)", "100": "oklch(94% .03 165)", "200": "oklch(88% .055 165)",
+            "300": "oklch(79% .08 165)", "400": "oklch(66% .1 165)", "500": "oklch(53% .095 165)",
+            "600": "oklch(45% .09 165)", "700": "oklch(38% .075 165)", "800": "oklch(31% .06 165)",
+            "900": "oklch(26% .05 165)", "950": "oklch(19% .04 165)",
+        },
+    },
+    "DASHBOARD_CALLBACK": "config.admin_dashboard.dashboard_callback",
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Overview",
+                "separator": False,
+                "items": [
+                    {"title": "Dashboard", "icon": "dashboard", "link": reverse_lazy("admin:index")},
+                ],
+            },
+            {
+                "title": "Accounts",
+                "separator": True,
+                "items": [
+                    {"title": "Users", "icon": "person", "link": reverse_lazy("admin:accounts_user_changelist")},
+                    _nav_item("Organizations", "business", "organization"),
+                    _nav_item("Sender IDs", "badge", "senderid"),
+                    _nav_item("API keys", "key", "apikey"),
+                ],
+            },
+            {
+                "title": "Messaging",
+                "separator": True,
+                "items": [
+                    _nav_item("Messages", "sms", "message"),
+                    _nav_item("OTP requests", "password", "otprequest"),
+                    _nav_item("Customers", "groups", "customer"),
+                    _nav_item("Templates", "article", "messagetemplate"),
+                ],
+            },
+            {
+                "title": "Billing",
+                "separator": True,
+                "items": [
+                    _nav_item("Payments", "payments", "payment"),
+                    _nav_item("Wallets", "account_balance_wallet", "wallet"),
+                    _nav_item("Ledger", "receipt_long", "ledgerentry"),
+                    _nav_item("SMS plans", "sell", "smsplan"),
+                    _nav_item("Pricing tiers", "price_change", "pricingtier"),
+                ],
+            },
+        ],
+    },
 }

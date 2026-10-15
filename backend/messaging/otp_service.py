@@ -150,11 +150,32 @@ def _send_now(r, redis_key, cooldown_key, spend_key, cost, sender, recipient, me
         raise ApiError("send_unavailable", "We couldn't send the message. Try again shortly.", 502) from exc
 
     if not result.ok:
-        logger.warning("OTP send to %s rejected: %s %s", recipient, result.error_code, result.error_message)
-        fail_message(message_id, result.error_code or "provider_rejected")
-        r.delete(redis_key, cooldown_key)
-        raise ApiError("send_unavailable", "We couldn't send the message. Try again shortly.", 502)
+        error_code = result.error_code or "provider_rejected"
 
+        logger.warning(
+        "OTP provider rejected message_id=%s provider=%s "
+        "error_code=%s detail=%s",
+        message_id,
+        provider.name,
+        error_code,
+        result.error_message,
+    )
+
+        fail_message(message_id, error_code)
+        r.delete(redis_key, cooldown_key)
+
+        if error_code == "provider_not_configured":
+            raise ApiError(
+            "sms_not_configured",
+            "SMS delivery is not configured. Please contact support.",
+            503,
+        )
+
+        raise ApiError(
+        "sms_delivery_failed",
+        "We couldn't deliver your verification code. Please try again later.",
+             502,
+    )
     now = timezone.now()
     Message.objects.filter(pk=message_id, status=Message.Status.QUEUED).update(
         status=result.status, provider=provider.name, provider_message_id=result.provider_message_id,

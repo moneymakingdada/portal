@@ -110,10 +110,62 @@ class ArkeselProvider(BaseProvider):
                               error_message=str(message or response.text)[:200])
 
 
+class DexatelProvider(BaseProvider):
+    """Dexatel Messages API: POST {data: {channel, from, to[], text}} with an
+    X-Dexatel-Key header. Docs: https://developers.dexatel.com/reference/messages-send
+    """
+    name = "dexatel"
+
+    def send(self, *, sender, recipient, body):
+        api_key = settings.DEXATEL_API_KEY
+        if not api_key:
+            return ProviderResult(ok=False, error_code="provider_not_configured",
+                                  error_message="DEXATEL_API_KEY is not set")
+        payload = {
+            "data": {
+                "channel": "SMS",
+                "from": sender,
+                "to": [recipient.lstrip("+")],   # Dexatel wants digits only, e.g. 233XXXXXXXXX
+                "text": body,
+            }
+        }
+        try:
+            response = requests.post(
+                settings.DEXATEL_SMS_URL,
+                json=payload,
+                headers={"X-Dexatel-Key": api_key, "Content-Type": "application/json"},
+                timeout=(3.05, 10),
+            )
+        except requests.RequestException as exc:
+            raise ProviderTransientError(str(exc)) from exc
+        if response.status_code >= 500:
+            raise ProviderTransientError(f"HTTP {response.status_code}")
+        try:
+            data = response.json()
+        except ValueError:
+            data = {}
+        if response.status_code == 201 and isinstance(data, dict) and data.get("id"):
+            # "enroute" on acceptance - Dexatel has no synchronous success/fail
+            # signal beyond that; final delivery status is async (payload/webhook,
+            # not wired up here - see the module docstring on ArkeselProvider's
+            # DLR webhook for the equivalent if that's ever needed for Dexatel).
+            return ProviderResult(ok=True, status="sent", provider_message_id=str(data.get("id", "")))
+        errors = data.get("errors") if isinstance(data, dict) else None
+        first_error = errors[0] if isinstance(errors, list) and errors and isinstance(errors[0], dict) else {}
+        message = first_error.get("message")
+        code = first_error.get("code")
+        return ProviderResult(
+            ok=False,
+            error_code=str(code) if code is not None else "provider_rejected",
+            error_message=str(message or response.text)[:200],
+        )
+
+
 _PROVIDERS = {
     "console": ConsoleProvider,
     "memory": MemoryProvider,
     "arkesel": ArkeselProvider,
+    "dexatel": DexatelProvider,
 }
 
 

@@ -36,7 +36,10 @@ export function readCookie(name) {
 
 async function ensureCsrf(force = false) {
   if (!force && readCookie("csrftoken")) return;
-  await fetch("/api/auth/csrf", { credentials: "same-origin", headers: { Accept: "application/json" } });
+  await fetch("/api/auth/csrf/", {
+  credentials: "same-origin",
+  headers: { Accept: "application/json" },
+});
 }
 
 async function send(path, { method, body, signal }, attempt) {

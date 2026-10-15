@@ -158,6 +158,41 @@ class SignupFlowTests(SignupTestCase):
         self.assertEqual(LedgerEntry.objects.count(), 0)
 
 
+class WelcomeSmsTests(SignupTestCase):
+    def verified_signup(self):
+        sid = self.start().data["signup_id"]
+        return self.verify(sid, last_code())
+
+    def test_owner_gets_a_welcome_text_after_verifying(self):
+        res = self.verified_signup()
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(len(MemoryProvider.outbox), 2)   # the code, then the welcome
+        welcome = MemoryProvider.outbox[-1]
+        self.assertEqual(welcome["recipient"], "+233241234567")
+        self.assertIn("Welcome to Portal, Ama!", welcome["body"])
+        self.assertIn("Adom Bakery", welcome["body"])
+        self.assertIn("GHS 2.00", welcome["body"])
+
+    @override_settings(SIGNUP_BONUS_PESEWAS=0)
+    def test_no_credit_line_when_there_is_no_bonus(self):
+        self.verified_signup()
+        self.assertNotIn("credit", MemoryProvider.outbox[-1]["body"])
+
+    @override_settings(WELCOME_SMS_ENABLED=False)
+    def test_can_be_switched_off(self):
+        self.verified_signup()
+        self.assertEqual(len(MemoryProvider.outbox), 1)   # just the code
+
+    def test_a_failing_provider_never_breaks_a_successful_signup(self):
+        sid = self.start().data["signup_id"]
+        code = last_code()
+        MemoryProvider.behavior = "reject"
+        res = self.verify(sid, code)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(self.client.get("/api/auth/me").data["user"]["email"], "ama@example.com")
+
+
 class SignupValidationTests(SignupTestCase):
     def assert_field_error(self, res, field):
         self.assertEqual(res.status_code, 400, res.data)
@@ -311,12 +346,81 @@ class CsrfTests(RedisAPITestCase):
         self.assertEqual(self.client.post("/api/auth/logout", HTTP_X_CSRFTOKEN=fresh).status_code, 204)
 
 
-class AdminTests(TestCase):
+class AdminTests(RedisAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser("admin@example.com", "Admin-pass-12345", full_name="Admin")
+        self.client.force_login(self.admin)
+
     def test_admin_pages_render(self):
-        admin = User.objects.create_superuser("admin@example.com", "Admin-pass-12345", full_name="Admin")
-        self.client.force_login(admin)
         for path in ["/admin/", "/admin/accounts/user/", "/admin/accounts/user/add/",
-                     f"/admin/accounts/user/{admin.pk}/change/", "/admin/messaging/organization/",
-                     "/admin/messaging/senderid/", "/admin/messaging/ledgerentry/", "/admin/messaging/wallet/",
-                     "/admin/messaging/message/", "/admin/messaging/apikey/"]:
+                     f"/admin/accounts/user/{self.admin.pk}/change/", "/admin/auth/group/",
+                     "/admin/messaging/organization/", "/admin/messaging/senderid/",
+                     "/admin/messaging/ledgerentry/", "/admin/messaging/wallet/",
+                     "/admin/messaging/message/", "/admin/messaging/apikey/", "/admin/messaging/customer/",
+                     "/admin/messaging/messagetemplate/", "/admin/messaging/payment/",
+                     "/admin/messaging/smsplan/", "/admin/messaging/otprequest/",
+                     "/admin/messaging/pricingtier/"]:
             self.assertEqual(self.client.get(path).status_code, 200, path)
+
+    def test_logging_in_at_the_bare_login_url_lands_on_the_admin(self):
+        self.client.logout()
+        res = self.client.post("/admin/login/", {"username": "admin@example.com", "password": "Admin-pass-12345"})
+        self.assertRedirects(res, "/admin/", fetch_redirect_response=False)
+
+    def test_admin_uses_unfold(self):
+        self.assertContains(self.client.get("/admin/"), "unfold")
+
+    def test_dashboard_shows_real_numbers(self):
+        from messaging.models import Message, Payment, SenderId
+        from common.testing import make_account
+
+        _, org, _, _ = make_account(balance=1500)
+        Message.objects.create(organization=org, sender="Portal", recipient="+233241234567", body="x",
+                               status=Message.Status.DELIVERED)
+        Message.objects.create(organization=org, sender="Portal", recipient="+233241234568", body="y",
+                               status=Message.Status.FAILED, error_code="provider_rejected")
+        Payment.objects.create(organization=org, provider="paystack", provider_reference="r1",
+                               amount_pesewas=2000, status=Payment.Status.SUCCESS)
+        SenderId.objects.create(organization=org, name="Acme", status=SenderId.Status.PENDING)
+
+        res = self.client.get("/admin/")
+        self.assertEqual(res.status_code, 200)
+        kpis = {k["title"]: k for k in res.context["kpis"]}
+        self.assertEqual(kpis["Messages, last 24h"]["value"], "2")
+        self.assertIn("50% delivered", kpis["Messages, last 24h"]["footer"])
+        self.assertEqual(kpis["Top-ups this month"]["value"], "GHS 20.00")
+        self.assertEqual(kpis["Wallet balances"]["value"], "GHS 15.00")
+        self.assertEqual(kpis["Pending senders"]["value"], "1")
+        self.assertTrue(kpis["Pending senders"]["attention"])
+        self.assertEqual(res.context["failures"]["rows"][0][3], "provider_rejected")
+        self.assertContains(res, "provider_rejected")
+
+    def test_sender_id_row_actions_approve_and_reject(self):
+        from messaging.models import SenderId
+        from common.testing import make_account
+
+        _, org, _, _ = make_account()
+        sender = SenderId.objects.create(organization=org, name="Acme", status=SenderId.Status.PENDING)
+        self.assertEqual(self.client.get("/admin/messaging/senderid/").status_code, 200)
+
+        self.client.get(f"/admin/messaging/senderid/{sender.pk}/approve/")
+        sender.refresh_from_db()
+        self.assertEqual(sender.status, SenderId.Status.APPROVED)
+
+        self.client.get(f"/admin/messaging/senderid/{sender.pk}/reject/")
+        sender.refresh_from_db()
+        self.assertEqual(sender.status, SenderId.Status.REJECTED)
+        self.assertTrue(sender.rejection_reason)
+
+    def test_suspend_and_reactivate_organizations(self):
+        from common.testing import make_account
+
+        _, org, _, _ = make_account()
+        url = "/admin/messaging/organization/"
+        self.client.post(url, {"action": "suspend", "_selected_action": [str(org.pk)]})
+        org.refresh_from_db()
+        self.assertFalse(org.is_active)
+        self.client.post(url, {"action": "reactivate", "_selected_action": [str(org.pk)]})
+        org.refresh_from_db()
+        self.assertTrue(org.is_active)

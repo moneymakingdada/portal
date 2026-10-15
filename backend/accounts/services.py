@@ -15,6 +15,7 @@ code, a resend cap, and a global daily ceiling on verification SMS.
 """
 import hashlib
 import json
+import logging
 import uuid
 
 from django.conf import settings
@@ -32,6 +33,8 @@ from messaging.models import LedgerEntry, Organization
 from messaging.providers import send_platform_sms
 
 from .models import User
+
+logger = logging.getLogger(__name__)
 
 SIGNUP_TTL = 600        # seconds a pending sign-up (and its code) stays valid
 RESEND_COOLDOWN = 60    # seconds between codes
@@ -198,7 +201,28 @@ def verify_signup(signup_id, code: str, *, ip: str) -> User:
 
     user = _create_account(pending)
     r.delete(_email_key(pending["email"]), _cooldown_key(sid), _resends_key(sid))
+    _send_welcome_sms(user, pending["organization_name"])
     return user
+
+
+def _send_welcome_sms(user: User, organization_name: str) -> None:
+    """Text the new account owner a welcome message once their account exists.
+
+    Best effort: the account is already created and committed, so a provider
+    hiccup here must never turn a successful sign-up into an error. Sent as a
+    platform message (not billed to their wallet), like the verification code.
+    """
+    if not settings.WELCOME_SMS_ENABLED:
+        return
+    first_name = (user.full_name or "").split(" ")[0]
+    greeting = f"Welcome to {settings.APP_NAME}, {first_name}!" if first_name else f"Welcome to {settings.APP_NAME}!"
+    body = f"{greeting} Your account for {organization_name} is ready."
+    if settings.SIGNUP_BONUS_PESEWAS > 0:
+        body += f" We've added GHS {settings.SIGNUP_BONUS_PESEWAS / 100:.2f} credit to get you started."
+    try:
+        send_platform_sms(user.phone, body)
+    except Exception:
+        logger.warning("Welcome SMS to %s failed; sign-up itself succeeded", user.phone, exc_info=True)
 
 
 def _create_account(pending: dict) -> User:
