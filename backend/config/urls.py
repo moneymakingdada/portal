@@ -6,18 +6,35 @@ from messaging.payment_views import PaystackWebhookView
 
 
 def health(request):
-    return JsonResponse({"status": "ok"})
+    return JsonResponse({
+        "status": "ok",
+        "service": "Portal API",
+    })
 
 
 urlpatterns = [
+    # Root health check for Render
+    path("", health, name="health"),
+
+    # Django Unfold admin
     path("admin/", admin.site.urls),
-    path("api/health", health),
-    # Called by Paystack itself (authenticated by request signature, not a session)
-    path("api/webhooks/paystack", PaystackWebhookView.as_view()),
-    # Session-authenticated: sign-up, login, logout, current user
+
+    # API health check
+    path("api/health/", health, name="api-health"),
+
+    # Paystack webhook
+    path(
+        "api/webhooks/paystack/",
+        PaystackWebhookView.as_view(),
+        name="paystack-webhook",
+    ),
+
+    # Authentication: signup, login, logout, current user
     path("api/auth/", include("accounts.urls")),
-    # Public API, authenticated with an API key (Authorization: Bearer sk_...)
+
+    # Public API authenticated using API keys
     path("api/v1/", include("messaging.urls")),
-    # Dashboard API, session-authenticated
+
+    # Dashboard API
     path("api/", include("messaging.dashboard_urls")),
 ]
