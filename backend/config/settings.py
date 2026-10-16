@@ -57,6 +57,8 @@ CSRF_TRUSTED_ORIGINS = env_list(
 
 INSTALLED_APPS = [
     "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -85,7 +87,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],  # admin dashboard override lives here
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
