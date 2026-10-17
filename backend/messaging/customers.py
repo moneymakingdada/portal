@@ -21,7 +21,7 @@ from common.redis import get_redis
 from common.spend import check_daily_cap, record_spend
 
 from .ledger import InsufficientFunds, debit_message
-from .models import Customer, Message
+from .models import Customer, Message, Suppression
 from .pricing import count_segments, price_for_segments, resolve_sender
 from .services import fail_message
 from .templates import placeholder_context, render_template, resolve_body
@@ -68,6 +68,13 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
     - message: custom text, sent as-is (still supports {customer_name} /
       {business_name} / {amount} placeholders)
     """
+    # A retried request replays the original result before anything else runs:
+    # it must not hit the rate limit, the daily cap, or an opt-out added since.
+    if idempotency_key:
+        existing = Message.objects.filter(organization=org, idempotency_key=idempotency_key).first()
+        if existing is not None:
+            return _replay(existing)
+
     r = get_redis()
     if customer is not None:
         phone = customer.phone
@@ -80,6 +87,12 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
         raise ApiError("missing_recipient", "Provide a recipient phone number.")
     if not (template_id or category or message):
         raise ApiError("missing_content", "Provide a template_id, a category, or a message.")
+
+    # Honour opt-outs before anything is charged, created or counted. This
+    # also keeps opted-out customers out of the automatic birthday run (it
+    # catches the ApiError and counts the customer as skipped).
+    if Suppression.objects.filter(organization=org, recipient=phone).exists():
+        raise ApiError("recipient_opted_out", "This number has opted out of messages from this account.", 422)
 
     sender = resolve_sender(org, sender_id)
 
@@ -123,9 +136,8 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
                 msg, created = Message.objects.get_or_create(
                     organization=org, idempotency_key=idempotency_key, defaults=defaults
                 )
-                if not created:
-                    return {"message_id": str(msg.id), "to": msg.recipient, "body": msg.body,
-                            "customer_id": str(msg.customer_id) if msg.customer_id else None}
+                if not created:       # lost a race with an identical concurrent request
+                    return _replay(msg)
             else:
                 msg = Message.objects.create(organization=org, idempotency_key=idempotency_key, **defaults)
 
@@ -139,6 +151,13 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
         "message_id": str(msg.id), "to": phone, "body": body,
         "customer_id": str(customer.id) if customer else None,
     }
+
+
+def _replay(msg: Message) -> dict:
+    """The original result of a request that was already handled (same idempotency key)."""
+    return {"message_id": str(msg.id), "to": msg.recipient, "body": msg.body,
+            "customer_id": str(msg.customer_id) if msg.customer_id else None,
+            "idempotent_replay": True}
 
 
 def _dispatch(spend_key, cost, message_id, body):

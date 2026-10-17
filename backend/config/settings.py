@@ -235,6 +235,14 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
 # succeeds (platform-sent, not billed to their wallet). Failures never block sign-up.
 WELCOME_SMS_ENABLED = env_bool("WELCOME_SMS_ENABLED", True)
 
+
+# Text the admins when someone creates an account. Recipients: every active
+# staff/superuser who has a phone number on their profile (set it in the admin),
+# plus any extra numbers listed in ADMIN_ALERT_PHONES (comma separated, e.g.
+# "024 123 4567,0551234567"). Failures never block sign-up.
+ADMIN_SIGNUP_ALERTS_ENABLED = env_bool("ADMIN_SIGNUP_ALERTS_ENABLED", True)
+ADMIN_ALERT_PHONES = env_list("ADMIN_ALERT_PHONES")
+
 # Wallet top-ups. Paystack's hosted checkout page takes the payment, so card and
 # Mobile Money details never touch this server. Use the secret key from
 # Paystack's dashboard (sk_test_... while testing, sk_live_... for real money).

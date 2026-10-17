@@ -26,11 +26,16 @@ class SendMessageView(APIView):
         if not data.get("to"):
             raise ApiError("missing_recipient", "Provide a recipient phone number in `to`.")
 
+        key = data.get("idempotency_key") or request.headers.get("Idempotency-Key", "").strip()
+        if len(key) > 120:
+            raise ApiError("invalid_idempotency_key", "Idempotency keys can be at most 120 characters.")
+
         result = send_customer_message(
-            org=request.user.organization, api_key=request.auth, to=data["to"],
+            org=request.user.organization, api_key=request.auth, to=data["to"], idempotency_key=key,
             category=data.get("category"), template_id=data.get("template_id"),
             message=data.get("message"), customer_name=data.get("customer_name"),
             amount_pesewas=int(data["amount"] * 100) if data.get("amount") is not None else None,
             sender_id=data.get("sender_id"), save_customer=data.get("save_customer", True),
         )
-        return Response(result, status=status.HTTP_201_CREATED)
+        replayed = result.get("idempotent_replay")
+        return Response(result, status=status.HTTP_200_OK if replayed else status.HTTP_201_CREATED)

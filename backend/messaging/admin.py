@@ -7,7 +7,7 @@ from unfold.decorators import action, display
 
 from .models import (
     ApiKey, Customer, LedgerEntry, Message, MessageTemplate, Organization, OtpRequest, Payment,
-    PricingTier, SenderId, SmsPlan, Wallet,
+    PricingTier, SenderId, SmsPlan, Suppression, Wallet,
 )
 
 
@@ -176,6 +176,16 @@ class CustomerAdmin(BaseAdmin):
     list_filter = (("organization", RelatedDropdownFilter),)
     list_filter_submit = True
     list_select_related = ("organization",)
+
+
+@admin.register(Suppression)
+class SuppressionAdmin(BaseAdmin):
+    """Numbers an organization must not message (opt-outs / do-not-contact)."""
+    list_display = ("recipient", "organization", "reason", "created_at")
+    list_filter = (("organization", RelatedDropdownFilter),)
+    list_filter_submit = True
+    list_select_related = ("organization",)
+    search_fields = ("recipient", "organization__name")
 
 
 @admin.register(MessageTemplate)

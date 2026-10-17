@@ -18,8 +18,8 @@ urlpatterns = [
     path("customers", views.CustomerListCreateView.as_view()),
     path("customers/<uuid:pk>", views.CustomerDetailView.as_view()),
     path("customers/<uuid:pk>/messages", views.CustomerMessagesView.as_view()),
+    path("opt-outs", views.SuppressionListCreateView.as_view()),
+    path("opt-outs/<int:pk>", views.SuppressionDeleteView.as_view()),
     path("templates", views.TemplateListCreateView.as_view()),
     path("templates/<uuid:pk>", views.TemplateDetailView.as_view()),
-    path("sender-ids", views.SenderIdListCreateView.as_view()),
-    path("sender-ids/<int:pk>", views.SenderIdDetailView.as_view()),
 ]

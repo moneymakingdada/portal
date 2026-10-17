@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from common.phone import InvalidPhone, normalize_gh_number
 
-from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SenderId, SmsPlan
+from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SmsPlan, Suppression
 
 
 class ApiKeySerializer(serializers.ModelSerializer):
@@ -48,6 +48,21 @@ class CustomerSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate_phone(self, value):
+        try:
+            return normalize_gh_number(value)
+        except InvalidPhone as exc:
+            raise serializers.ValidationError(str(exc))
+
+
+class SuppressionSerializer(serializers.ModelSerializer):
+    """A phone number an organization must not message (opt-out / do-not-contact)."""
+
+    class Meta:
+        model = Suppression
+        fields = ["id", "recipient", "reason", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_recipient(self, value):
         try:
             return normalize_gh_number(value)
         except InvalidPhone as exc:
@@ -102,6 +117,8 @@ class SendCustomerMessageSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, min_value=0)
     sender_id = serializers.CharField(max_length=11, required=False)
     save_customer = serializers.BooleanField(default=True)
+    # Retrying a request with the same key never sends twice (also accepted as an Idempotency-Key header).
+    idempotency_key = serializers.CharField(max_length=120, required=False, allow_blank=False)
 
     def validate(self, attrs):
         if not any(k in attrs for k in ("category", "template_id", "message")):
@@ -127,30 +144,4 @@ class TopupStartSerializer(serializers.Serializer):
     def validate(self, attrs):
         if ("plan_id" in attrs) == ("amount" in attrs):
             raise serializers.ValidationError("Provide either plan_id or amount.")
-        return attrs
-
-
-# ---------------------------------------------------------------------------
-# Sender IDs
-# ---------------------------------------------------------------------------
-class SenderIdSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SenderId
-        fields = ["id", "channel", "name", "purpose", "status", "rejection_reason", "created_at"]
-        read_only_fields = fields
-
-
-class SenderIdCreateSerializer(serializers.Serializer):
-    channel = serializers.ChoiceField(choices=["sms", "email"], default="sms")
-    name = serializers.CharField(min_length=1, max_length=160)
-    purpose = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
-
-    def validate(self, attrs):
-        name = attrs["name"].strip()
-        if attrs["channel"] == "sms":
-            if not name.replace(" ", "").isalnum() or len(name) > 11:
-                raise serializers.ValidationError(
-                    {"name": "An SMS sender ID must be 11 characters or fewer, letters and numbers only."}
-                )
-        attrs["name"] = name
         return attrs

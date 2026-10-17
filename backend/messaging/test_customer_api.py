@@ -261,3 +261,158 @@ class OrganizationSettingsTests(RedisAPITestCase):
 
         res = self.client.patch("/api/settings", {"birthday_messages_enabled": True}, format="json")
         self.assertTrue(res.data["birthday_messages_enabled"])
+
+
+# ---------------------------------------------------------------------------
+# Opt-outs, idempotent retries, and OTP-only pricing
+# ---------------------------------------------------------------------------
+class OptOutTests(RedisAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.user, self.org, self.key, self.raw = make_account(balance=1000)
+        self.api = api_client(self.raw)
+
+    def opt_out(self, phone="0241112222"):
+        from .models import Suppression
+        return Suppression.objects.create(organization=self.org, recipient="+233241112222")
+
+    def test_sending_to_an_opted_out_number_is_refused_and_free(self):
+        self.opt_out()
+        with self.captureOnCommitCallbacks(execute=True):
+            res = self.api.post("/api/v1/messages/send", {"to": "024 111 2222", "category": "thank_you"}, format="json")
+        self.assertEqual(res.status_code, 422)
+        self.assertEqual(res.data["error"]["code"], "recipient_opted_out")
+        self.assertEqual(Message.objects.count(), 0)
+        self.assertEqual(Customer.objects.count(), 0)          # not even saved as a customer
+        self.assertEqual(MemoryProvider.outbox, [])
+        self.assertEqual(balance(self.org), 1000)
+
+    def test_opt_outs_belong_to_one_organization(self):
+        self.opt_out()
+        _, other_org, _, other_raw = make_account(email="other@example.com", org_name="Other Ltd", balance=1000)
+        with self.captureOnCommitCallbacks(execute=True):
+            res = api_client(other_raw).post("/api/v1/messages/send", {"to": "0241112222", "category": "welcome"}, format="json")
+        self.assertEqual(res.status_code, 201, res.data)
+
+    def test_the_birthday_run_skips_opted_out_customers(self):
+        from .customers import send_birthday_messages
+        today = datetime.date(2026, 6, 15)
+        opted = Customer.objects.create(organization=self.org, phone="+233241112222", name="Ama", birthday=datetime.date(1990, 6, 15))
+        Customer.objects.create(organization=self.org, phone="+233241113333", name="Kofi", birthday=datetime.date(1985, 6, 15))
+        self.opt_out()
+        with self.captureOnCommitCallbacks(execute=True):
+            result = send_birthday_messages(today=today)
+        self.assertEqual((result["sent"], result["skipped"]), (1, 1))
+        self.assertEqual([m["recipient"] for m in MemoryProvider.outbox], ["+233241113333"])
+        self.assertFalse(Message.objects.filter(customer=opted).exists())
+
+    def test_manage_opt_outs_from_the_dashboard(self):
+        client = APIClient()
+        client.force_login(self.user)
+        res = client.post("/api/opt-outs", {"recipient": "024 111 2222", "reason": "replied STOP"}, format="json")
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["recipient"], "+233241112222")
+        self.assertEqual(client.post("/api/opt-outs", {"recipient": "0241112222"}, format="json").status_code, 409)
+        self.assertEqual(client.post("/api/opt-outs", {"recipient": "12345"}, format="json").status_code, 400)
+
+        listed = client.get("/api/opt-outs")
+        self.assertEqual(listed.data["count"], 1)
+
+        self.assertEqual(client.delete(f"/api/opt-outs/{res.data['id']}").status_code, 204)
+        self.assertEqual(client.get("/api/opt-outs").data["count"], 0)
+
+    def test_one_organization_cannot_see_or_remove_anothers_opt_outs(self):
+        entry = self.opt_out()
+        other_user, _, _, _ = make_account(email="other@example.com", org_name="Other Ltd")
+        client = APIClient()
+        client.force_login(other_user)
+        self.assertEqual(client.get("/api/opt-outs").data["count"], 0)
+        self.assertEqual(client.delete(f"/api/opt-outs/{entry.pk}").status_code, 404)
+
+
+class IdempotencyTests(RedisAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.user, self.org, self.key, self.raw = make_account(balance=1000)
+        self.api = api_client(self.raw)
+
+    def send(self, headers=None, **body):
+        body.setdefault("to", "0241112222")
+        body.setdefault("category", "thank_you")
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.api.post("/api/v1/messages/send", body, format="json", **(headers or {}))
+
+    def test_a_retry_with_the_same_key_sends_and_charges_once(self):
+        first = self.send(idempotency_key="order-1001")
+        again = self.send(idempotency_key="order-1001")
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(again.status_code, 200)
+        self.assertTrue(again.data["idempotent_replay"])
+        self.assertEqual(again.data["message_id"], first.data["message_id"])
+        self.assertEqual(Message.objects.count(), 1)
+        self.assertEqual(len(MemoryProvider.outbox), 1)
+        self.assertEqual(balance(self.org), 1000 - 5)
+
+    def test_the_idempotency_key_header_works_too(self):
+        first = self.send(headers={"HTTP_IDEMPOTENCY_KEY": "order-7"})
+        again = self.send(headers={"HTTP_IDEMPOTENCY_KEY": "order-7"})
+        self.assertEqual(again.data["message_id"], first.data["message_id"])
+        self.assertEqual(Message.objects.count(), 1)
+
+    def test_different_keys_and_no_key_send_separately(self):
+        self.send(idempotency_key="a")
+        self.send(idempotency_key="b")
+        self.send()
+        self.send()
+        self.assertEqual(Message.objects.count(), 4)
+
+    def test_a_replay_is_not_blocked_by_an_opt_out_added_since(self):
+        first = self.send(idempotency_key="order-9")
+        from .models import Suppression
+        Suppression.objects.create(organization=self.org, recipient="+233241112222")
+        again = self.send(idempotency_key="order-9")
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.data["message_id"], first.data["message_id"])
+
+    def test_keys_are_scoped_to_the_organization(self):
+        self.send(idempotency_key="shared")
+        _, _, _, other_raw = make_account(email="other@example.com", org_name="Other Ltd", balance=1000)
+        with self.captureOnCommitCallbacks(execute=True):
+            res = api_client(other_raw).post("/api/v1/messages/send",
+                                            {"to": "0241112222", "category": "thank_you", "idempotency_key": "shared"}, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(Message.objects.count(), 2)
+
+    def test_overlong_keys_are_rejected(self):
+        res = self.send(headers={"HTTP_IDEMPOTENCY_KEY": "x" * 121})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.data["error"]["code"], "invalid_idempotency_key")
+        self.assertEqual(self.send(idempotency_key="y" * 121).status_code, 400)
+
+
+class PricingTests(RedisAPITestCase):
+    def test_the_otp_price_only_applies_to_otps(self):
+        from .models import PricingTier
+        from .pricing import price_for_segments
+        PricingTier.objects.create(network="", price_per_segment_pesewas=5, otp_price_pesewas=12)
+        self.assertEqual(price_for_segments(1, otp=True), 12)
+        self.assertEqual(price_for_segments(3, otp=True), 12)      # flat per verification
+        self.assertEqual(price_for_segments(1), 5)
+        self.assertEqual(price_for_segments(3), 15)                # per segment, not the OTP price
+
+    def test_without_an_otp_price_otps_cost_per_segment_like_anything_else(self):
+        from .models import PricingTier
+        from .pricing import price_for_segments
+        PricingTier.objects.create(network="", price_per_segment_pesewas=5)
+        self.assertEqual(price_for_segments(2, otp=True), 10)
+
+    def test_a_multi_segment_customer_message_is_billed_per_segment(self):
+        from .models import PricingTier
+        PricingTier.objects.create(network="", price_per_segment_pesewas=5, otp_price_pesewas=1)
+        user, org, key, raw = make_account(balance=1000)
+        with self.captureOnCommitCallbacks(execute=True):
+            res = api_client(raw).post("/api/v1/messages/send",
+                                       {"to": "0241112222", "message": "x" * 200}, format="json")
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(Message.objects.get().segments, 2)
+        self.assertEqual(balance(org), 1000 - 10)                  # 2 segments x 5, not the OTP price of 1
