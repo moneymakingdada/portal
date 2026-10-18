@@ -63,7 +63,7 @@ def build_letter(*, business: bool, sender_id: str = "", full_name: str = "", em
     _add(doc, f"Sender ID: {sender}", bold=True)
 
     who = "us" if business else "me"
-    _add(doc, f"I write this letter to request that the above sender ID(s) be whitelisted for {partner}, who serves "
+    _add(doc, f"I write this letter to request that the above sender ID(s) be whitelisted for {platform}, who serves "
               f"as {'our' if business else 'my'} authorized partner for sending SMS messages to "
               f"{'our' if business else 'my'} contacts.")
     _add(doc, "This sender ID will be used for sending [describe what you will send, e.g. OTPs, transaction alerts "
