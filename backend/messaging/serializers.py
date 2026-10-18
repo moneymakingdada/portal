@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from common.phone import InvalidPhone, normalize_gh_number
 
-from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SmsPlan, Suppression
+from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SenderId, SenderIdDocument, SmsPlan, Suppression
 
 
 class ApiKeySerializer(serializers.ModelSerializer):
@@ -145,3 +145,21 @@ class TopupStartSerializer(serializers.Serializer):
         if ("plan_id" in attrs) == ("amount" in attrs):
             raise serializers.ValidationError("Provide either plan_id or amount.")
         return attrs
+
+
+class SenderIdDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SenderIdDocument
+        fields = ["kind", "filename", "size", "uploaded_at"]
+        read_only_fields = fields
+
+
+class SenderIdSerializer(serializers.ModelSerializer):
+    """What an organization sees of its own requests. Never includes file contents."""
+    documents = SenderIdDocumentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SenderId
+        fields = ["id", "name", "purpose", "status", "rejection_reason", "is_business",
+                  "submitted_at", "reviewed_at", "documents"]
+        read_only_fields = fields

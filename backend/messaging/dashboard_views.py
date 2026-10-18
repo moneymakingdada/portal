@@ -1,13 +1,16 @@
 """Session-authenticated API behind the dashboard. Everything is scoped to the
 signed-in user's organization."""
+import logging
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.http import HttpResponse
+from django.db.models import Count, Prefetch, Q
 from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,9 +20,15 @@ from common.errors import ApiError
 from common.pagination import PagePagination
 
 from .api_auth import create_api_key
+from .tasks import alert_admins_of_sender_request
 from .customers import send_customer_message
-from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, OtpRequest, Suppression, Wallet
+from .models import (
+    ApiKey, Customer, LedgerEntry, Message, MessageTemplate, OtpRequest, SenderId, SenderIdDocument,
+    Suppression, Wallet,
+)
+from .letter import CONTENT_TYPE as LETTER_CONTENT_TYPE, build_letter
 from .pricing import price_for_segments
+from .sender_requests import MAX_UPLOAD_BYTES, SENDER_NAME_RE, SenderRequestSerializer, submit_sender_request
 from .serializers import (
     ApiKeyCreateSerializer,
     ApiKeySerializer,
@@ -30,9 +39,12 @@ from .serializers import (
     MessageTemplateSerializer,
     MessageTemplateWriteSerializer,
     SendCustomerMessageSerializer,
+    SenderIdSerializer,
     SuppressionSerializer,
 )
 from .templates import CATEGORIES, SUGGESTED_TEMPLATES
+
+logger = logging.getLogger(__name__)
 
 MAX_ACTIVE_KEYS = 10
 
@@ -271,6 +283,74 @@ class SuppressionDeleteView(OrgRequiredMixin, APIView):
     def delete(self, request, pk):
         get_object_or_404(Suppression, pk=pk, organization=self.org()).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Sender ID requests
+# ---------------------------------------------------------------------------
+def _own_senders(org):
+    documents = Prefetch("documents", queryset=SenderIdDocument.objects.defer("data"))
+    return SenderId.objects.filter(organization=org).prefetch_related(documents).order_by("-submitted_at")
+
+
+class SenderIdListCreateView(EnforceCsrfMixin, OrgRequiredMixin, APIView):
+    """List this organization's sender ID requests, or submit a new one as a
+    multipart form (name, purpose, is_business, letter, supporting)."""
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        return Response({"results": SenderIdSerializer(_own_senders(self.org()), many=True).data})
+
+    def post(self, request):
+        org = self.org()
+        # Refuse absurdly large bodies before parsing them (two files at the cap plus form fields fit well under this).
+        if int(request.META.get("CONTENT_LENGTH") or 0) > MAX_UPLOAD_BYTES * 2 + 512 * 1024:
+            raise ApiError("upload_too_large", "Those files are too large. Each one must be under 5 MB.", 413)
+        serializer = SenderRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sender, resubmitted = submit_sender_request(org, serializer.validated_data)
+        transaction.on_commit(lambda: _alert_admins(sender.pk, resubmitted))
+        sender = _own_senders(org).get(pk=sender.pk)
+        return Response(SenderIdSerializer(sender).data, status=status.HTTP_201_CREATED)
+
+
+def _alert_admins(sender_pk, resubmitted):
+    """Queue the staff alert. The request is already saved, so a broker hiccup here must not fail it."""
+    try:
+        alert_admins_of_sender_request.delay(sender_pk, resubmitted)
+    except Exception:
+        logger.warning("Couldn't queue the admin alert for sender request %s", sender_pk, exc_info=True)
+
+
+class SenderIdDetailView(EnforceCsrfMixin, OrgRequiredMixin, APIView):
+    def delete(self, request, pk):
+        sender = get_object_or_404(SenderId, pk=pk, organization=self.org())
+        if sender.status == SenderId.Status.APPROVED:
+            raise ApiError("sender_approved", "An approved sender ID can't be withdrawn here. Contact support.", 409)
+        sender.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SenderLetterTemplateView(OrgRequiredMixin, APIView):
+    """GET /api/sender-ids/letter-template?type=business|individual&sender_id=ACME
+    The sample letter of authorization as an editable Word file, pre-filled with
+    what we know about the signed-in user."""
+
+    def get(self, request):
+        user, org = request.user, self.org()
+        business = request.query_params.get("type") == "business"
+        requested = " ".join((request.query_params.get("sender_id") or "").split())
+        content = build_letter(
+            business=business,
+            sender_id=requested if SENDER_NAME_RE.match(requested) else "",
+            full_name=user.full_name or "", email=user.email or "", phone=user.phone or "",
+            organization=org.name if business else "",
+        )
+        response = HttpResponse(content, content_type=LETTER_CONTENT_TYPE)
+        kind = "business" if business else "individual"
+        response["Content-Disposition"] = f'attachment; filename="letter-of-authorization-{kind}.docx"'
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 def _to_pesewas(amount):

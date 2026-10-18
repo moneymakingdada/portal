@@ -36,15 +36,14 @@ export function readCookie(name) {
 
 async function ensureCsrf(force = false) {
   if (!force && readCookie("csrftoken")) return;
-  await fetch("/api/auth/csrf/", {
-  credentials: "same-origin",
-  headers: { Accept: "application/json" },
-});
+  await fetch("/api/auth/csrf", { credentials: "same-origin", headers: { Accept: "application/json" } });
 }
 
 async function send(path, { method, body, signal }, attempt) {
   const headers = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  // FormData (file uploads) must go out as-is: the browser sets the multipart Content-Type and boundary itself.
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   if (!SAFE_METHODS.has(method)) {
     await ensureCsrf(attempt > 0);
     const token = readCookie("csrftoken");
@@ -58,7 +57,7 @@ async function send(path, { method, body, signal }, attempt) {
       headers,
       credentials: "same-origin",
       signal,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined || isForm ? body : JSON.stringify(body),
     });
   } catch (err) {
     if (err?.name === "AbortError") throw err;

@@ -87,7 +87,7 @@ export default function Quickstart() {
               <tr><th scope="row" className="mono">customer_name</th><td>—</td><td>Fills {"{customer_name}"}, and names the customer record if one is created.</td></tr>
               <tr><th scope="row" className="mono">amount</th><td>—</td><td>A number in GHS (e.g. 45.50). Fills {"{amount}"} as "GHS 45.50".</td></tr>
               <tr><th scope="row" className="mono">save_customer</th><td>true</td><td>Whether to create or update a customer record for this phone number.</td></tr>
-              <tr><th scope="row" className="mono">sender_id</th><td>—</td><td>An approved sender ID, same as the OTP API.</td></tr>
+              <tr><th scope="row" className="mono">sender_id</th><td>—</td><td>An approved sender ID, same as the OTP API. Request one under <Link to="/dashboard/sender-ids">Sender IDs</Link>; leave it out to send as the default.</td></tr>
               <tr><th scope="row" className="mono">idempotency_key</th><td>—</td><td>Up to 120 characters (or send an <code className="mono">Idempotency-Key</code> header). Retrying with the same key returns the original message (status 200) instead of sending and charging again.</td></tr>
             </tbody>
           </table>

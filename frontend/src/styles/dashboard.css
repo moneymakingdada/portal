@@ -99,7 +99,7 @@
 .bars__label { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* Tables */
-.table-wrap { overflow-x: auto; }
+.table-wrap { position: relative; overflow-x: auto; }  /* relative: keeps absolutely-positioned .sr-only text inside the scroller */
 .table { font-size: 0.925rem; }
 .table th, .table td { padding: 0.75rem 0.85rem 0.75rem 0; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line-soft); }
 .table thead th { font-size: 0.825rem; font-weight: 600; color: var(--muted); white-space: nowrap; border-bottom-color: var(--line); }
@@ -240,7 +240,17 @@
   .topup .btn { margin-top: 0; }
 }
 
-
-/* Sender ID request form ------------------------------------------------------------ */
-.senderform { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; max-width: 34rem; }
-.senderform .mode { grid-template-columns: minmax(0, 1fr); }
+/* Sender ID requests */
+.senderform { display: grid; gap: 1.25rem; max-width: 44rem; margin-top: 1rem; }
+.senderform__files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.senderform__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.85rem 1.25rem; }
+.senderform .field__input { width: 100%; }
+.field__input--file { padding: 0.5rem; cursor: pointer; }
+.field__input--file::file-selector-button {
+  margin-right: 0.75rem; padding: 0.4rem 0.8rem; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--paper); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer;
+}
+.sender__reason { margin: 0.35rem 0 0; font-size: 0.85rem; color: var(--bad); max-width: 28rem; }
+.sender__purpose { display: block; margin-top: 0.2rem; font-size: 0.85rem; color: var(--muted); max-width: 28rem; }
+@media (max-width: 720px) { .senderform__files { grid-template-columns: minmax(0, 1fr); } }
+.sender__cell { min-width: 12rem; }

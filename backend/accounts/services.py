@@ -29,6 +29,7 @@ from common.errors import ApiError
 from common.phone import InvalidPhone, mask_phone, normalize_gh_number
 from common.ratelimit import hit
 from common.redis import get_redis
+from messaging.admin_alerts import notify_admins
 from messaging.ledger import post_entry
 from messaging.models import LedgerEntry, Organization
 from messaging.providers import send_platform_sms
@@ -230,44 +231,15 @@ def _send_welcome_sms(user: User, organization_name: str) -> None:
 MAX_ADMIN_ALERTS = 10   # a sanity ceiling on how many numbers one sign-up can text
 
 
-def _admin_alert_numbers(exclude: str | None = None) -> list[str]:
-    """Who gets told about a new sign-up: active staff/superusers who have a
-    phone number on file, plus anything in ADMIN_ALERT_PHONES (for people who
-    want the alert without an admin login). De-duplicated, capped."""
-    staff = (
-        User.objects.filter(is_active=True)
-        .filter(Q(is_staff=True) | Q(is_superuser=True))
-        .exclude(phone__isnull=True).exclude(phone="")
-        .order_by("date_joined")
-        .values_list("phone", flat=True)
-    )
-    numbers = list(staff)
-    for raw in settings.ADMIN_ALERT_PHONES:
-        try:
-            numbers.append(normalize_gh_number(raw))
-        except InvalidPhone:
-            logger.warning("Ignoring invalid ADMIN_ALERT_PHONES entry %r", raw)
-    unique = list(dict.fromkeys(n for n in numbers if n != exclude))
-    return unique[:MAX_ADMIN_ALERTS]
-
-
 def _alert_admins_of_signup(user: User, organization_name: str) -> None:
-    """Text staff and superusers that someone just created an account.
-
-    Best effort, like the welcome SMS: the account already exists, so one
-    unreachable admin number must never fail the sign-up or block the others.
-    """
+    """Text staff and superusers that someone just created an account."""
     if not settings.ADMIN_SIGNUP_ALERTS_ENABLED:
         return
     body = (
         f"{settings.APP_NAME}: new sign-up. {user.full_name[:40]} ({organization_name[:40]}), "
         f"{user.phone}, {user.email}"
     )
-    for number in _admin_alert_numbers(exclude=user.phone):
-        try:
-            send_platform_sms(number, body)
-        except Exception:
-            logger.warning("Admin sign-up alert to %s failed; sign-up itself succeeded", number, exc_info=True)
+    notify_admins(body, exclude=user.phone)
 
 
 def _create_account(pending: dict) -> User:

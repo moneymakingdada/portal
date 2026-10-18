@@ -1,13 +1,22 @@
+from urllib.parse import quote
+
 from django.contrib import admin, messages
-from django.shortcuts import redirect
-from django.urls import reverse
+from django.core.exceptions import PermissionDenied
+from django.db.models import Prefetch
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import path, reverse
+from django.utils import timezone
+from django.utils.html import format_html_join
+from django.utils.safestring import mark_safe
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import ChoicesDropdownFilter, RangeDateTimeFilter, RelatedDropdownFilter
 from unfold.decorators import action, display
 
+from .sender_requests import queue_decision_text
 from .models import (
     ApiKey, Customer, LedgerEntry, Message, MessageTemplate, Organization, OtpRequest, Payment,
-    PricingTier, SenderId, SmsPlan, Suppression, Wallet,
+    PricingTier, SenderId, SenderIdDocument, SmsPlan, Suppression, Wallet,
 )
 
 
@@ -69,34 +78,107 @@ class OrganizationAdmin(BaseAdmin):
 
 @admin.register(SenderId)
 class SenderIdAdmin(BaseAdmin):
-    """Approve or reject sender IDs here after the telco decides."""
-    list_display = ("name", "organization", "status_badge", "purpose", "created_at")
-    list_filter = (("status", ChoicesDropdownFilter),)
+    """Review sender ID requests: open the uploaded letter and ID/certificate,
+    then approve or reject. Approving only marks it approved on the platform;
+    the name must also be registered with the SMS provider before it delivers."""
+    list_display = ("name", "organization", "status_badge", "kind", "paperwork", "submitted_at")
+    list_filter = (("status", ChoicesDropdownFilter), "is_business")
     list_filter_submit = True
     list_select_related = ("organization",)
-    search_fields = ("name", "organization__name")
+    search_fields = ("name", "organization__name", "organization__owner__email")
+    ordering = ("-submitted_at",)
     actions_row = ["approve", "reject"]
+    fields = ("name", "organization", "status", "rejection_reason", "kind", "purpose",
+              "submitted_at", "reviewed_at", "reviewed_by", "document_links")
+    readonly_fields = ("organization", "kind", "purpose", "submitted_at", "reviewed_at",
+                       "reviewed_by", "document_links")
 
     @display(description="Status", ordering="status",
              label={"approved": "success", "pending": "warning", "rejected": "danger"})
     def status_badge(self, obj):
         return obj.status
 
-    def _set_status(self, request, object_id, status, note):
-        updated = SenderId.objects.filter(pk=object_id).update(
-            status=status, rejection_reason="" if status == SenderId.Status.APPROVED else "Rejected by admin"
+    @display(description="Type", ordering="is_business", label={"Business": "info"})
+    def kind(self, obj):
+        return "Business" if obj.is_business else "Individual"
+
+    @display(description="Paperwork")
+    def paperwork(self, obj):
+        kinds = {d.kind for d in obj.documents.all()}
+        return " + ".join(label for key, label in (("letter", "Letter"), ("supporting", "ID/certificate")) if key in kinds) or "None"
+
+    @display(description="Uploaded documents")
+    def document_links(self, obj):
+        if not obj.pk:
+            return "-"
+        docs = list(obj.documents.defer("data"))
+        if not docs:
+            return "None uploaded."
+        return format_html_join(
+            mark_safe("<br>"), '<a href="{}">{}: {}</a> ({} KB)',
+            ((reverse("admin:messaging_senderid_document", args=[obj.pk, d.kind]),
+              d.get_kind_display(), d.filename, max(1, round(d.size / 1024))) for d in docs),
         )
-        if updated:
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related(
+            Prefetch("documents", queryset=SenderIdDocument.objects.defer("data"))
+        )
+
+    def get_urls(self):
+        custom = [path(
+            "<int:object_id>/document/<str:kind>/",
+            self.admin_site.admin_view(self.download_document),
+            name="messaging_senderid_document",
+        )]
+        return custom + super().get_urls()
+
+    def download_document(self, request, object_id, kind):
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        document = get_object_or_404(SenderIdDocument, sender_id=object_id, kind=kind)
+        response = HttpResponse(bytes(document.data), content_type=document.content_type)
+        response["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(document.filename)}"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+    def save_model(self, request, obj, form, change):
+        decided = change and "status" in form.changed_data
+        if decided:
+            obj.reviewed_by, obj.reviewed_at = request.user, timezone.now()
+            if obj.status == SenderId.Status.APPROVED:
+                obj.rejection_reason = ""
+        super().save_model(request, obj, form, change)
+        if decided:
+            queue_decision_text(obj)
+
+    def _decide(self, request, object_id, status, reason, note):
+        sender = SenderId.objects.filter(pk=object_id).first()
+        if sender is not None:
+            changed = sender.status != status
+            sender.status, sender.reviewed_by, sender.reviewed_at = status, request.user, timezone.now()
+            sender.rejection_reason = reason
+            sender.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+            if changed:
+                queue_decision_text(sender)
             self.message_user(request, note, messages.SUCCESS)
+            if status == SenderId.Status.APPROVED and not sender.documents.filter(kind="letter").exists():
+                self.message_user(request, "Approved without a letter of authorization on file.", messages.WARNING)
         return redirect(request.META.get("HTTP_REFERER") or reverse("admin:messaging_senderid_changelist"))
 
     @action(description="Approve", url_path="approve", permissions=["change"])
     def approve(self, request, object_id):
-        return self._set_status(request, object_id, SenderId.Status.APPROVED, "Sender ID approved.")
+        return self._decide(request, object_id, SenderId.Status.APPROVED, "", "Sender ID approved.")
 
     @action(description="Reject", url_path="reject", permissions=["change"])
     def reject(self, request, object_id):
-        return self._set_status(request, object_id, SenderId.Status.REJECTED, "Sender ID rejected.")
+        # For a specific reason, edit the request and set the status and reason there instead.
+        return self._decide(
+            request, object_id, SenderId.Status.REJECTED,
+            "We couldn't verify your documents. Please resubmit with a clear, signed letter.",
+            "Sender ID rejected.",
+        )
 
 
 @admin.register(PricingTier)

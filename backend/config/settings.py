@@ -243,6 +243,20 @@ WELCOME_SMS_ENABLED = env_bool("WELCOME_SMS_ENABLED", True)
 ADMIN_SIGNUP_ALERTS_ENABLED = env_bool("ADMIN_SIGNUP_ALERTS_ENABLED", True)
 ADMIN_ALERT_PHONES = env_list("ADMIN_ALERT_PHONES")
 
+# Text the same admin numbers when an organization submits (or resubmits) a
+# sender ID request, so it gets reviewed instead of sitting in the queue.
+ADMIN_SENDER_ALERTS_ENABLED = env_bool("ADMIN_SENDER_ALERTS_ENABLED", True)
+
+# Text the account owner when staff approve or reject their sender ID request
+# (platform-sent, free to them; a rejection includes the reason).
+SENDER_DECISION_SMS_ENABLED = env_bool("SENDER_DECISION_SMS_ENABLED", True)
+
+# Name of the SMS partner written into the downloadable letter of authorization
+# ("... whitelisted for <partner>"). Defaults to whichever provider is active.
+SENDER_LETTER_PARTNER = os.environ.get("SENDER_LETTER_PARTNER") or {
+    "arkesel": "Arkesel", "dexatel": "Dexatel",
+}.get(SMS_BACKEND, APP_NAME)
+
 # Wallet top-ups. Paystack's hosted checkout page takes the payment, so card and
 # Mobile Money details never touch this server. Use the secret key from
 # Paystack's dashboard (sk_test_... while testing, sk_live_... for real money).

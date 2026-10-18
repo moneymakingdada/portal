@@ -5,6 +5,7 @@ ledger, messages, and OTP audit records. All money is integer pesewas (100 = GHS
 import uuid
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 # ---------------------------------------------------------------------------
@@ -41,34 +42,55 @@ class ApiKey(models.Model):
 
 
 class SenderId(models.Model):
-    """A name an organization has asked to send as: an SMS sender ID (max 11
-    alphanumeric characters, shown to recipients as the message's "from") or
-    an email display name (shown as "Name <platform's verified address>" -
-    the address itself is never customer-controlled, since sending from an
-    unverified domain fails delivery checks and looks like spoofing).
-    Requires manual approval; see resolve_sender() / resolve_email_sender()
-    in messaging/pricing.py for how an approved one gets used."""
-    class Channel(models.TextChoices):
-        SMS = "sms"
-        EMAIL = "email"
-
     class Status(models.TextChoices):
         PENDING = "pending"
         APPROVED = "approved"
         REJECTED = "rejected"
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="sender_ids")
-    channel = models.CharField(max_length=10, choices=Channel.choices, default=Channel.SMS)
-    name = models.CharField(max_length=160)                    # SMS: 11-char limit enforced in the serializer
+    name = models.CharField(max_length=11)                     # 11-char limit
     purpose = models.TextField(blank=True)                     # sample message for approval
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     rejection_reason = models.CharField(max_length=255, blank=True)
+    # Telcos want a signed letter of authorization (plus a business certificate
+    # or Ghana Card) before they whitelist a name; see SenderIdDocument.
+    is_business = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(default=timezone.now)   # reset when a rejected request is resubmitted
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["organization", "channel", "name"], name="uniq_org_sender"),
-        ]
+        constraints = [models.UniqueConstraint(fields=["organization", "name"], name="uniq_org_sender")]
+
+    def __str__(self):
+        return self.name
+
+
+class SenderIdDocument(models.Model):
+    """A file uploaded with a sender ID request. Stored in the database rather
+    than on disk because Render's filesystem is wiped on every deploy; they're
+    capped at a few MB each and only ever served to staff, as attachments."""
+
+    class Kind(models.TextChoices):
+        LETTER = "letter", "Letter of authorization"
+        SUPPORTING = "supporting", "Business certificate / Ghana Card"
+
+    sender_id = models.ForeignKey(SenderId, on_delete=models.CASCADE, related_name="documents")
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100)
+    size = models.PositiveIntegerField()
+    data = models.BinaryField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["sender_id", "kind"], name="uniq_sender_document_kind")]
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.filename}"
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +262,6 @@ class Message(models.Model):
 
     class Category(models.TextChoices):
         OTP = "otp"
-        SMS = "sms"               # generic send via /v1/sms/send: no customer/template semantics
         THANK_YOU = "thank_you"
         BIRTHDAY = "birthday"
         HOLIDAY = "holiday"
@@ -254,8 +275,8 @@ class Message(models.Model):
     category = models.CharField(max_length=20, choices=Category.choices, blank=True)
     customer = models.ForeignKey(Customer, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
     template = models.ForeignKey(MessageTemplate, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
-    sender = models.CharField(max_length=160)                   # SMS sender ID, or "Display Name <email>"
-    recipient = models.CharField(max_length=254, db_index=True)  # phone (E.164) or email address
+    sender = models.CharField(max_length=11)
+    recipient = models.CharField(max_length=16, db_index=True)  # E.164, e.g. +233241234567
     body = models.TextField()
     segments = models.PositiveSmallIntegerField(default=1)
     cost_pesewas = models.IntegerField(default=0)               # what the customer pays
@@ -325,7 +346,7 @@ class OtpRequest(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # returned as request_id
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="otp_requests")
-    recipient = models.CharField(max_length=254, db_index=True)  # phone (E.164) or email address
+    recipient = models.CharField(max_length=16, db_index=True)
     channel = models.CharField(max_length=10, default="sms")
     purpose = models.CharField(max_length=50, blank=True)       # login | signup | payment
     code_hash = models.CharField(max_length=128)                # HMAC-SHA256(code, per-request salt); never plaintext

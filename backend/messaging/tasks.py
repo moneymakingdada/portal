@@ -56,3 +56,59 @@ def send_birthday_messages_task():
     logger.info("Birthday messages for %s: sent=%s skipped=%s failed=%s",
                 result["date"], result["sent"], result["skipped"], result["failed"])
     return result
+
+
+@shared_task
+def alert_admins_of_sender_request(sender_pk: int, resubmitted: bool = False):
+    """Text the admins that a sender ID request is waiting for review. Runs in
+    the background so a slow SMS provider never delays the customer's upload."""
+    from django.conf import settings
+
+    from .admin_alerts import notify_admins
+    from .models import SenderId
+
+    if not settings.ADMIN_SENDER_ALERTS_ENABLED:
+        return
+    sender = SenderId.objects.select_related("organization").filter(pk=sender_pk).first()
+    if sender is None or sender.status != SenderId.Status.PENDING:
+        return  # withdrawn or already decided since it was submitted
+    body = (
+        f"{settings.APP_NAME}: sender ID request{' (resubmitted)' if resubmitted else ''}. "
+        f"{sender.name} from {sender.organization.name[:40]} "
+        f"({'business' if sender.is_business else 'individual'}). Review in Admin > Sender IDs."
+    )
+    if settings.BACKEND_URL:
+        body += f" {settings.BACKEND_URL}/admin/messaging/senderid/"
+    notify_admins(body)
+
+
+@shared_task
+def notify_owner_of_sender_decision(sender_pk: int, decision: str):
+    """Text the account owner that their sender ID request was approved or
+    rejected. Skipped if the request has changed again since (so a quick
+    approve-then-reject never sends the stale message)."""
+    from django.conf import settings
+
+    from .models import SenderId
+
+    if not settings.SENDER_DECISION_SMS_ENABLED:
+        return
+    sender = SenderId.objects.select_related("organization__owner").filter(pk=sender_pk).first()
+    if sender is None or sender.status != decision:
+        return
+    phone = getattr(sender.organization.owner, "phone", None)
+    if not phone:
+        return
+    if decision == SenderId.Status.APPROVED:
+        body = (f'{settings.APP_NAME}: your sender ID "{sender.name}" is approved. '
+                "You can now use it when you send messages.")
+    elif decision == SenderId.Status.REJECTED:
+        reason = (sender.rejection_reason or "We couldn't verify your documents.")[:120]
+        body = (f'{settings.APP_NAME}: your sender ID "{sender.name}" was not approved. {reason} '
+                "Fix it and resubmit from your dashboard.")
+    else:
+        return
+    try:
+        providers.send_platform_sms(phone, body)
+    except Exception:
+        logger.warning("Sender ID decision text to %s failed; the decision itself stands", phone, exc_info=True)

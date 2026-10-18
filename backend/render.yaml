@@ -46,6 +46,14 @@ projects:
                 sync: false   # optional: extra numbers to text on every new sign-up, comma separated (admins with a phone on their profile are texted automatically)
               - key: WELCOME_SMS_ENABLED
                 sync: false
+              - key: SENDER_DECISION_SMS_ENABLED
+                sync: false
+              - key: SENDER_LETTER_PARTNER
+                sync: false
+              - key: ADMIN_SENDER_ALERTS_ENABLED
+                sync: false
+              - key: ADMIN_SIGNUP_ALERTS_ENABLED
+                sync: false
               - key: ARKESEL_SANDBOX
                 sync: false
               - key: ARKESEL_API_KEY
