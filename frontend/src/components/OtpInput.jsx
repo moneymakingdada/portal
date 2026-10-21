@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * One box per digit. Handles typing, pasting a whole code, Backspace, arrow keys
@@ -10,11 +10,16 @@ export default function OtpInput({
   label = "Verification code", autoFocus = false,
 }) {
   const refs = useRef([]);
+  // Focus events fire synchronously inside the change handler, before React re-renders, so
+  // `value` is stale there. This ref always holds the latest value for those handlers.
+  const latest = useRef(value);
+  useEffect(() => { latest.current = value; });
   const digits = Array.from({ length }, (_, i) => value[i] ?? "");
 
   const focus = (i) => refs.current[Math.max(0, Math.min(i, length - 1))]?.focus();
 
   const update = (next, focusIndex) => {
+    latest.current = next;
     onChange(next);
     if (focusIndex != null) focus(focusIndex);
     if (next.length === length) onComplete?.(next);
@@ -56,11 +61,12 @@ export default function OtpInput({
   };
 
   const handleFocus = (i, event) => {
-    if (i > value.length) {           // keep the digits contiguous: jump to the first empty box
-      focus(value.length);
+    const filled = latest.current.length;
+    if (i > filled) {                 // keep the digits contiguous: jump to the first empty box
+      focus(filled);
       return;
     }
-    event.target.select();
+    event.target.select();            // landing on a filled box selects it so typing replaces it
   };
 
   return (
