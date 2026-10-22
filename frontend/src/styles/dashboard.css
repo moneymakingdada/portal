@@ -254,3 +254,33 @@
 .sender__purpose { display: block; margin-top: 0.2rem; font-size: 0.85rem; color: var(--muted); max-width: 28rem; }
 @media (max-width: 720px) { .senderform__files { grid-template-columns: minmax(0, 1fr); } }
 .sender__cell { min-width: 12rem; }
+
+/* Bulk SMS -------------------------------------------------------------------------- */
+.bulkform { display: grid; gap: 1.25rem; max-width: 52rem; }
+.bulkform .field__input { width: 100%; }
+.bulk__who { margin: 0; padding: 0; border: 0; min-width: 0; }
+.bulk__who legend { padding: 0; }
+.bulk__split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; margin-top: 0.4rem; }
+.bulk__check { display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; }
+.bulk__check input { flex-shrink: 0; width: 1.1rem; height: 1.1rem; margin-top: 0.25rem; accent-color: var(--forest-700); }
+.bulk__check > span { display: grid; gap: 0.15rem; }
+.bulk__review, .bulk__progress {
+  max-width: 52rem; margin-top: 1.5rem; padding: 1.25rem 1.4rem;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-l);
+}
+.bulk__progress progress { width: 100%; height: 0.7rem; margin: 0.6rem 0 0.25rem; accent-color: var(--forest-700); }
+.bulk__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem; margin: 1rem 0; }
+.bulk__facts dt { font-size: 0.85rem; color: var(--muted); }
+.bulk__facts dd { margin: 0.15rem 0 0; font-size: 1.15rem; font-weight: 600; font-variant-numeric: lining-nums; }
+.bulk__sub { font-size: 0.85rem; font-weight: 400; color: var(--muted); }
+.bulk__invalid { margin: 0 0 1rem; }
+.bulk__invalid summary { cursor: pointer; font-weight: 600; color: var(--forest-700); }
+.bulk__invalid ul { max-height: 12rem; margin: 0.6rem 0 0; padding: 0 0 0 1.1rem; overflow: auto; }
+.bulk__sample { display: grid; gap: 0.35rem; margin: 1rem 0 1.25rem; }
+.bulk__bubble {
+  display: block; max-width: 30rem; padding: 0.7rem 0.95rem; background: var(--porcelain);
+  border: 1px solid var(--line); border-radius: var(--radius-m) var(--radius-m) var(--radius-m) 2px; line-height: 1.5;
+}
+.bulk__body { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk__review .notice { margin-bottom: 1rem; }
+@media (max-width: 720px) { .bulk__split { grid-template-columns: minmax(0, 1fr); } }

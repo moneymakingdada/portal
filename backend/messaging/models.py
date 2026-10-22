@@ -244,6 +244,45 @@ class PricingTier(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Bulk sending
+# ---------------------------------------------------------------------------
+class Campaign(models.Model):
+    """One bulk send: the same message to many numbers. The runner (campaigns.run_campaign)
+    works through `recipients`, then clears them (the Message rows are the record)."""
+
+    class Status(models.TextChoices):
+        QUEUED = "queued"
+        RUNNING = "running"
+        DONE = "done"
+        FAILED = "failed"      # never started (queue unavailable); nothing was charged
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="campaigns")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # Chosen by the browser per submission, so a double-click or retry can't send the same batch twice.
+    client_token = models.CharField(max_length=64)
+    category = models.CharField(max_length=20, blank=True)
+    body = models.CharField(max_length=480)                    # the template text, placeholders unfilled
+    sender = models.CharField(max_length=11, blank=True)       # requested sender ID ("" = platform default)
+    save_customers = models.BooleanField(default=True)
+    recipients = models.JSONField(default=list, blank=True)    # cleared once the run finishes
+    total = models.PositiveIntegerField(default=0)             # valid, de-duplicated numbers in the batch
+    accepted = models.PositiveIntegerField(default=0)          # charged and handed to the sender
+    skipped = models.PositiveIntegerField(default=0)           # refused up front (opted out, cap, funds...)
+    failed = models.PositiveIntegerField(default=0)            # unexpected errors
+    skipped_reasons = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.QUEUED)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "client_token"], name="uniq_org_campaign_token"),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # Messaging
 # ---------------------------------------------------------------------------
 class Message(models.Model):
@@ -275,6 +314,7 @@ class Message(models.Model):
     category = models.CharField(max_length=20, choices=Category.choices, blank=True)
     customer = models.ForeignKey(Customer, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
     template = models.ForeignKey(MessageTemplate, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
+    campaign = models.ForeignKey("Campaign", null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
     sender = models.CharField(max_length=11)
     recipient = models.CharField(max_length=16, db_index=True)  # E.164, e.g. +233241234567
     body = models.TextField()

@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from common.phone import InvalidPhone, normalize_gh_number
 
-from .models import ApiKey, Customer, LedgerEntry, Message, MessageTemplate, SenderId, SenderIdDocument, SmsPlan, Suppression
+from .models import ApiKey, Campaign, Customer, LedgerEntry, Message, MessageTemplate, SenderId, SenderIdDocument, SmsPlan, Suppression
 
 
 class ApiKeySerializer(serializers.ModelSerializer):
@@ -163,3 +163,64 @@ class SenderIdSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "purpose", "status", "rejection_reason", "is_business",
                   "submitted_at", "reviewed_at", "documents"]
         read_only_fields = fields
+
+
+# ---------------------------------------------------------------------------
+# Bulk sending
+# ---------------------------------------------------------------------------
+class _TrueByDefaultBoolean(serializers.BooleanField):
+    """A multipart form omits an unticked checkbox, which DRF would read as False.
+    Here an omitted value means "yes" (the field's default), as it does for a JSON body."""
+    default_empty_html = True
+
+
+class BulkSendSerializer(serializers.Serializer):
+    numbers = serializers.CharField(required=False, allow_blank=True, default="", trim_whitespace=False)
+    file = serializers.FileField(required=False, allow_empty_file=True)
+    category = serializers.ChoiceField(choices=MessageTemplate.Category.choices, required=False)
+    template_id = serializers.UUIDField(required=False)
+    message = serializers.CharField(max_length=480, required=False, allow_blank=False)
+    sender_id = serializers.CharField(max_length=11, required=False, allow_blank=True)
+    save_customers = _TrueByDefaultBoolean(default=True)
+    dry_run = serializers.BooleanField(default=False)
+    # One per submission (the browser makes it up): sending the same token again never sends twice.
+    client_token = serializers.CharField(min_length=8, max_length=64, required=False)
+
+    def validate(self, attrs):
+        if not any(k in attrs for k in ("category", "template_id", "message")):
+            raise serializers.ValidationError("Choose a message type or write a message.")
+        if not attrs.get("dry_run") and not attrs.get("client_token"):
+            raise serializers.ValidationError({"client_token": "This field is required."})
+        return attrs
+
+
+class CampaignSerializer(serializers.ModelSerializer):
+    """A bulk send and how it's going. Expects the queryset from bulk_views.campaigns_for(), which
+    adds the per-status counts; they fall back to None if the instance wasn't loaded that way."""
+    delivered = serializers.SerializerMethodField()
+    sent = serializers.SerializerMethodField()
+    in_queue = serializers.SerializerMethodField()
+    delivery_failed = serializers.SerializerMethodField()
+    cost_pesewas = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Campaign
+        fields = ["id", "status", "category", "body", "sender", "save_customers", "total", "accepted", "skipped",
+                  "failed", "skipped_reasons", "delivered", "sent", "in_queue", "delivery_failed", "cost_pesewas",
+                  "created_at", "finished_at"]
+        read_only_fields = fields
+
+    def get_delivered(self, obj):
+        return getattr(obj, "n_delivered", None)
+
+    def get_sent(self, obj):
+        return getattr(obj, "n_sent", None)
+
+    def get_in_queue(self, obj):
+        return getattr(obj, "n_queued", None)
+
+    def get_delivery_failed(self, obj):
+        return getattr(obj, "n_failed", None)
+
+    def get_cost_pesewas(self, obj):
+        return getattr(obj, "n_cost", None) or 0

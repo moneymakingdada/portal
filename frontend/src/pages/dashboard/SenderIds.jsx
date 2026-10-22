@@ -55,9 +55,15 @@ export default function SenderIds() {
     };
   }
 
+  function clearProblem(key) {
+    setLocalErrors((e) => (e[key] ? { ...e, [key]: null } : e));
+  }
+
   async function submit(event) {
     event.preventDefault();
     const problems = {};
+    if (!name.trim()) problems.name = "Enter the name you want to send as.";
+    if (purpose.trim().length < 10) problems.purpose = "Describe what you'll send (at least 10 characters).";
     if (!letter) problems.letter = "Upload your signed letter of authorization.";
     if (!supporting) problems.supporting = `Upload your ${supportingLabel.toLowerCase()}.`;
     if (Object.values({ ...localErrors, ...problems }).some(Boolean)) {
@@ -109,7 +115,7 @@ export default function SenderIds() {
     setBusiness(sender.is_business);
     setSent(null);
     setSubmitError(null);
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    formRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }
 
   const formError = submitError && submitError.code !== "validation_error" ? submitError.message : null;
@@ -132,15 +138,18 @@ export default function SenderIds() {
         <form className="senderform" onSubmit={submit} noValidate>
           <TextField label="Sender ID" name="sender_name" placeholder="e.g. ACME" maxLength={11} required
             hint="3 to 11 letters or numbers. This is what recipients see."
-            value={name} onChange={(e) => setName(e.target.value)} error={fieldError(submitError, "name")} />
+            value={name} onChange={(e) => { setName(e.target.value); clearProblem("name"); }}
+            error={localErrors.name || fieldError(submitError, "name")} />
 
           <div className="field">
             <label className="field__label" htmlFor="sender-purpose">What will you send?</label>
             <textarea id="sender-purpose" className="field__input compose__textarea" rows={3} maxLength={300} required
-              aria-invalid={fieldError(submitError, "purpose") ? "true" : undefined}
+              aria-invalid={localErrors.purpose || fieldError(submitError, "purpose") ? "true" : undefined}
               placeholder="e.g. Order confirmations and receipts for customers of Adom Bakery."
-              value={purpose} onChange={(e) => setPurpose(e.target.value)} />
-            {fieldError(submitError, "purpose") && <p className="field__error">{fieldError(submitError, "purpose")}</p>}
+              value={purpose} onChange={(e) => { setPurpose(e.target.value); clearProblem("purpose"); }} />
+            {localErrors.purpose || fieldError(submitError, "purpose")
+              ? <p className="field__error">{localErrors.purpose || fieldError(submitError, "purpose")}</p>
+              : <p className="field__hint">Write at least 10 characters.</p>}
           </div>
 
           <fieldset className="mode">
@@ -171,7 +180,7 @@ export default function SenderIds() {
           </div>
 
           <div className="senderform__actions">
-            <button type="submit" className="btn btn--forest" disabled={submitting || !name.trim() || purpose.trim().length < 10}>
+            <button type="submit" className="btn btn--forest" disabled={submitting}>
               {submitting ? "Sending…" : "Submit for review"}
             </button>
           </div>

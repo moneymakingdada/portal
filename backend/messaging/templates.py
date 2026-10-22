@@ -44,6 +44,18 @@ SUGGESTED_TEMPLATES = {
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
+# Tags a bulk message can use: every recipient gets a value (or "there"), so none is ever sent literally.
+BULK_PLACEHOLDERS = {"business_name", "customer_name", "first_name"}
+
+
+def unknown_placeholders(body: str, allowed: set[str]) -> list[str]:
+    """Placeholder names used in `body` that aren't in `allowed`, in order of first use."""
+    seen: list[str] = []
+    for name in _PLACEHOLDER.findall(body):
+        if name not in allowed and name not in seen:
+            seen.append(name)
+    return seen
+
 
 def render_template(body: str, context: dict) -> str:
     """Fill {placeholder} tags from `context`. A placeholder with no value in
@@ -59,9 +71,12 @@ def render_template(body: str, context: dict) -> str:
 
 def placeholder_context(*, customer: "Customer | None", business_name: str,
                          customer_name: str | None = None, amount_pesewas: int | None = None) -> dict:
+    name = customer_name or (customer.name if customer else None) or ""
     context = {
         "business_name": business_name,
-        "customer_name": customer_name or (customer.name if customer else None) or "there",
+        "customer_name": name or "there",
+        # "Hi John" reads better than "Hi John Doe" in a bulk message built from a contacts file.
+        "first_name": name.split()[0] if name.split() else "there",
     }
     if amount_pesewas is not None:
         context["amount"] = f"GHS {amount_pesewas / 100:.2f}"

@@ -47,6 +47,22 @@ def send_sms(self, message_id: str, body: str):
         fail_message(message.pk, result.error_code)
 
 
+@shared_task(bind=True, time_limit=900, soft_time_limit=840)
+def run_campaign_task(self, campaign_id: str):
+    """Send a bulk batch in the background (see campaigns.run_campaign). If the time limit is
+    reached partway through a very large batch, queue it again: numbers already sent are
+    replayed from their idempotency keys, so nothing is charged twice."""
+    from celery.exceptions import SoftTimeLimitExceeded
+
+    from .campaigns import run_campaign
+
+    try:
+        run_campaign(campaign_id)
+    except SoftTimeLimitExceeded:
+        logger.warning("Bulk send %s hit the time limit; queueing it again to continue", campaign_id)
+        run_campaign_task.apply_async(args=[campaign_id], countdown=1)
+
+
 @shared_task
 def send_birthday_messages_task():
     """Runs once a day (see CELERY_BEAT_SCHEDULE in config/settings.py)."""

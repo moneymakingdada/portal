@@ -52,7 +52,8 @@ def upsert_customer(org, *, phone: str, name: str = "", email: str = "", birthda
 
 def send_customer_message(*, org, api_key=None, to=None, customer=None, category=None, template_id=None,
                            message=None, customer_name=None, amount_pesewas=None,
-                           sender_id=None, save_customer=True, idempotency_key="") -> dict:
+                           sender_id=None, save_customer=True, idempotency_key="",
+                           campaign=None, rate_limit=True) -> dict:
     """Send a thank-you, birthday, holiday, welcome or custom message to a
     phone number, optionally attaching it to (and creating) a Customer.
 
@@ -66,7 +67,10 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
     - category alone: use the org's default template for that category, or
       the built-in suggestion if the org hasn't saved one
     - message: custom text, sent as-is (still supports {customer_name} /
-      {business_name} / {amount} placeholders)
+      {first_name} / {business_name} / {amount} placeholders)
+
+    `campaign` ties the message to a bulk send. A bulk send turns `rate_limit` off:
+    it is one deliberate batch, bounded by its own size limit, not a runaway loop.
     """
     # A retried request replays the original result before anything else runs:
     # it must not hit the rate limit, the daily cap, or an opt-out added since.
@@ -99,8 +103,9 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
     # A steady per-organization limit bounds the damage from a runaway
     # integration loop; a legitimate business sending to many customers in a
     # short burst is expected and not otherwise restricted here.
-    hit(f"rl:custmsg:org:{org.id}", limit=300, window=60, code="org_rate_limited",
-        message="Too many messages sent in a short time. Slow down.")
+    if rate_limit:
+        hit(f"rl:custmsg:org:{org.id}", limit=300, window=60, code="org_rate_limited",
+            message="Too many messages sent in a short time. Slow down.")
 
     template = None
     if message:
@@ -129,7 +134,7 @@ def send_customer_message(*, org, api_key=None, to=None, customer=None, category
         with transaction.atomic():
             defaults = dict(
                 api_key=api_key, channel=Message.Channel.SMS, category=resolved_category,
-                customer=customer, template=template, sender=sender, recipient=phone,
+                customer=customer, template=template, campaign=campaign, sender=sender, recipient=phone,
                 body=body, segments=segments, cost_pesewas=cost if is_live else 0,
             )
             if idempotency_key:

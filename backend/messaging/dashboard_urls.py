@@ -1,6 +1,7 @@
 # Dashboard API, mounted at /api/ and authenticated with the login session.
 from django.urls import path
 
+from . import bulk_views
 from . import dashboard_views as views
 from . import payment_views
 
@@ -18,6 +19,9 @@ urlpatterns = [
     path("customers", views.CustomerListCreateView.as_view()),
     path("customers/<uuid:pk>", views.CustomerDetailView.as_view()),
     path("customers/<uuid:pk>/messages", views.CustomerMessagesView.as_view()),
+    path("bulk", bulk_views.BulkListCreateView.as_view()),
+    path("bulk/sample", bulk_views.BulkSampleView.as_view()),
+    path("bulk/<uuid:pk>", bulk_views.BulkDetailView.as_view()),
     path("sender-ids", views.SenderIdListCreateView.as_view()),
     path("sender-ids/letter-template", views.SenderLetterTemplateView.as_view()),
     path("sender-ids/<int:pk>", views.SenderIdDetailView.as_view()),

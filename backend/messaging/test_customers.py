@@ -41,7 +41,12 @@ class RenderTemplateTests(TestCase):
 class PlaceholderContextTests(TestCase):
     def test_falls_back_to_generic_greeting_with_no_name(self):
         ctx = placeholder_context(customer=None, business_name="Adom Bakery")
-        self.assertEqual(ctx, {"business_name": "Adom Bakery", "customer_name": "there"})
+        self.assertEqual(ctx, {"business_name": "Adom Bakery", "customer_name": "there", "first_name": "there"})
+
+    def test_first_name_is_the_first_word_of_the_name(self):
+        ctx = placeholder_context(customer=None, business_name="Shop", customer_name="Ama Serwaa Mensah")
+        self.assertEqual(ctx["first_name"], "Ama")
+        self.assertEqual(ctx["customer_name"], "Ama Serwaa Mensah")
 
     def test_explicit_customer_name_wins_over_customers_saved_name(self):
         _, org, _, _ = make_account()

@@ -7,6 +7,7 @@ import DashboardLayout from "./pages/dashboard/DashboardLayout";
 import Overview from "./pages/dashboard/Overview";
 import ApiKeys from "./pages/dashboard/ApiKeys";
 import Customers from "./pages/dashboard/Customers";
+import BulkSend from "./pages/dashboard/BulkSend";
 import CustomerDetail from "./pages/dashboard/CustomerDetail";
 import Templates from "./pages/dashboard/Templates";
 import Messages from "./pages/dashboard/Messages";
@@ -59,6 +60,7 @@ export default function App() {
         <Route index element={<Overview />} />
         <Route path="customers" element={<Customers />} />
         <Route path="customers/:id" element={<CustomerDetail />} />
+        <Route path="bulk" element={<BulkSend />} />
         <Route path="templates" element={<Templates />} />
         <Route path="api-keys" element={<ApiKeys />} />
         <Route path="messages" element={<Messages />} />

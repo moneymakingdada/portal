@@ -67,6 +67,52 @@ describe("OtpInput", () => {
     expect(document.activeElement).toBe(boxes[1]);
   });
 
+  it("typing a whole code in one go fills every box in order and never highlights a digit", async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    function Controlled() {
+      const [value, setValue] = useState("");
+      return <OtpInput length={6} value={value} onChange={setValue} onComplete={onComplete} />;
+    }
+    render(<Controlled />);
+    const boxes = screen.getAllByRole("textbox");
+    boxes[0].focus();
+    for (const [n, d] of [..."123456"].entries()) {
+      await user.keyboard(d);
+      expect(boxes[n]).toHaveValue(d);
+      for (const box of boxes) expect(box.selectionStart).toBe(box.selectionEnd);
+    }
+    expect(boxes.map((b) => b.value).join("")).toBe("123456");
+    expect(onComplete).toHaveBeenCalledWith("123456");
+  });
+
+  it("going back to a filled box selects it so the next digit replaces it", async () => {
+    const user = userEvent.setup();
+    function Controlled() {
+      const [value, setValue] = useState("123");
+      return <OtpInput length={6} value={value} onChange={setValue} />;
+    }
+    render(<Controlled />);
+    const boxes = screen.getAllByRole("textbox");
+    boxes[1].focus();
+    expect(boxes[1].selectionStart).toBe(0);
+    expect(boxes[1].selectionEnd).toBe(1);
+    await user.keyboard("9");
+    expect(boxes.map((b) => b.value).join("")).toBe("193");
+  });
+
+  it("clicking a box beyond the next empty one lands on the next empty box", async () => {
+    const user = userEvent.setup();
+    function Controlled() {
+      const [value, setValue] = useState("12");
+      return <OtpInput length={6} value={value} onChange={setValue} />;
+    }
+    render(<Controlled />);
+    const boxes = screen.getAllByRole("textbox");
+    await user.click(boxes[5]);
+    expect(document.activeElement).toBe(boxes[2]);
+  });
+
   it("marks boxes invalid via aria-invalid", () => {
     setup({ invalid: true });
     for (const box of screen.getAllByRole("textbox")) expect(box).toHaveAttribute("aria-invalid", "true");
