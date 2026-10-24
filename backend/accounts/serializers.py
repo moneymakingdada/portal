@@ -1,7 +1,9 @@
+from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from common.errors import ApiError
 from common.phone import InvalidPhone, normalize_gh_number
 
 from .models import User
@@ -24,6 +26,22 @@ class SignupSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
     phone = serializers.CharField(max_length=32)
     password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
+    accept_terms = serializers.BooleanField(error_messages={
+        "required": "Tick the box to agree to the Terms of Service and Privacy Policy.",
+        "null": "Tick the box to agree to the Terms of Service and Privacy Policy.",
+    })
+    # The version of the documents the person was shown, so we record what they actually agreed to.
+    terms_version = serializers.CharField(max_length=20)
+
+    def validate_accept_terms(self, value):
+        if value is not True:
+            raise serializers.ValidationError("Tick the box to agree to the Terms of Service and Privacy Policy.")
+        return value
+
+    def validate_terms_version(self, value):
+        if value != settings.TERMS_VERSION:
+            raise ApiError("terms_outdated", "Our terms were just updated. Refresh the page to read and accept them.", 409)
+        return value
 
     def validate_full_name(self, value):
         return value.strip()

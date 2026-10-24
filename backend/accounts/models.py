@@ -35,6 +35,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     # E.164, e.g. +233241234567. Set (and verified by SMS code) at sign-up.
     phone = models.CharField(max_length=16, unique=True, null=True, blank=True)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
+    # When they ticked "I agree to the Terms and Privacy Policy" at sign-up, and which version they saw.
+    # Empty for accounts created before this was asked.
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
+    terms_version = models.CharField(max_length=20, blank=True)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

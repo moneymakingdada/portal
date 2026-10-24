@@ -185,6 +185,11 @@ CELERY_BEAT_SCHEDULE = {
 # ---------------------------------------------------------------------------
 APP_NAME = os.environ.get("APP_NAME", "Portal")
 
+# The version of the Terms of Service and Privacy Policy people accept at sign-up. Change it (and
+# LEGAL_VERSION in frontend/src/lib/legal.js, to the same value) whenever either document changes.
+TERMS_VERSION = os.environ.get("TERMS_VERSION", "2026-10-24")
+
+
 # Alphanumeric sender ID for platform messages (sign-up codes). Max 11 characters.
 DEFAULT_SENDER_ID = os.environ.get("DEFAULT_SENDER_ID", "Portal")
 if len(DEFAULT_SENDER_ID) > 11:

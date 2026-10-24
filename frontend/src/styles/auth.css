@@ -37,3 +37,8 @@
   .auth__mobile-logo { display: block; }
   .auth__panel { margin-top: 0; }
 }
+
+.auth__terms { display: grid; gap: 0.35rem; }
+.auth__check { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.925rem; line-height: 1.5; color: var(--ink-soft); cursor: pointer; }
+.auth__check input { flex-shrink: 0; width: 1.15rem; height: 1.15rem; margin-top: 0.2rem; accent-color: var(--forest-700); }
+.auth__check a { color: var(--forest-700); font-weight: 600; text-underline-offset: 3px; }

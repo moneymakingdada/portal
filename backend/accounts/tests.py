@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -20,6 +21,8 @@ def payload(**overrides):
         "email": "ama@example.com",
         "phone": "024 123 4567",
         "password": GOOD_PASSWORD,
+        "accept_terms": True,
+        "terms_version": settings.TERMS_VERSION,
     }
     data.update(overrides)
     return data
@@ -40,6 +43,61 @@ class SignupTestCase(RedisAPITestCase):
         if clear_cooldown:
             get_redis().delete(f"signup:cd:{sid}")
         return self.client.post("/api/auth/signup/resend", {"signup_id": sid}, format="json")
+
+
+class TermsAcceptanceTests(SignupTestCase):
+    def assert_refused_without_texting(self, res, field):
+        self.assertEqual(res.status_code, 400, res.data)
+        self.assertIn(field, res.data["error"]["fields"])
+        self.assertEqual(MemoryProvider.outbox, [])          # no code is sent, so nothing is spent
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_signing_up_without_agreeing_is_refused(self):
+        data = payload()
+        del data["accept_terms"]
+        res = self.client.post("/api/auth/signup", data, format="json")
+        self.assert_refused_without_texting(res, "accept_terms")
+        self.assertIn("Tick the box", res.data["error"]["fields"]["accept_terms"][0])
+
+    def test_an_unticked_box_is_refused(self):
+        self.assert_refused_without_texting(self.start(accept_terms=False), "accept_terms")
+
+    def test_only_a_real_yes_counts(self):
+        for value in (None, "", "no", 0):
+            self.assert_refused_without_texting(self.start(accept_terms=value), "accept_terms")
+
+    def test_a_form_left_open_across_a_terms_update_is_asked_to_refresh(self):
+        res = self.start(terms_version="2020-01-01")
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.data["error"]["code"], "terms_outdated")
+        self.assertEqual(MemoryProvider.outbox, [])
+
+    def test_the_version_is_required(self):
+        data = payload()
+        del data["terms_version"]
+        self.assert_refused_without_texting(self.client.post("/api/auth/signup", data, format="json"), "terms_version")
+
+    def test_the_acceptance_and_version_are_recorded_on_the_account(self):
+        start = self.start()
+        self.verify(start.data["signup_id"], last_code())
+        user = User.objects.get()
+        self.assertEqual(user.terms_version, settings.TERMS_VERSION)
+        self.assertIsNotNone(user.terms_accepted_at)
+        # Recorded when the box was ticked, which is before the phone was verified.
+        self.assertLessEqual(user.terms_accepted_at, user.phone_verified_at)
+
+    def test_a_sign_up_already_under_way_when_terms_were_introduced_still_completes(self):
+        start = self.start()
+        r = get_redis()
+        key = f"signup:data:{start.data['signup_id']}"
+        import json
+        pending = json.loads(r.get(key))
+        pending.pop("terms_accepted_at"), pending.pop("terms_version")
+        r.set(key, json.dumps(pending), ex=600)
+        self.assertEqual(self.verify(start.data["signup_id"], last_code()).status_code, 201)
+        user = User.objects.get()
+        self.assertIsNone(user.terms_accepted_at)
+        self.assertEqual(user.terms_version, "")
 
 
 class SignupFlowTests(SignupTestCase):
@@ -193,6 +251,60 @@ class WelcomeSmsTests(SignupTestCase):
         self.assertEqual(self.client.get("/api/auth/me").data["user"]["email"], "ama@example.com")
 
 
+class AdminSignupAlertTests(SignupTestCase):
+    def make_staff(self, email, phone, **extra):
+        return User.objects.create_user(email, "Staff-pass-12345", full_name="Staff", phone=phone, **extra)
+
+    def verified_signup(self):
+        sid = self.start().data["signup_id"]
+        return self.verify(sid, last_code())
+
+    def alerts(self):
+        # outbox: the code, the welcome text, then any admin alerts
+        return MemoryProvider.outbox[2:]
+
+    def test_staff_and_superusers_with_a_phone_are_texted(self):
+        self.make_staff("staff@example.com", "+233201111111", is_staff=True)
+        self.make_staff("boss@example.com", "+233202222222", is_superuser=True)
+        self.make_staff("customer@example.com", "+233203333333")                     # not an admin
+        self.make_staff("nophone@example.com", None, is_staff=True)                  # admin, no number
+        self.make_staff("gone@example.com", "+233204444444", is_staff=True, is_active=False)
+
+        self.assertEqual(self.verified_signup().status_code, 201)
+        self.assertEqual(sorted(a["recipient"] for a in self.alerts()), ["+233201111111", "+233202222222"])
+        body = self.alerts()[0]["body"]
+        self.assertIn("new sign-up", body)
+        self.assertIn("Ama Mensah", body)
+        self.assertIn("Adom Bakery", body)
+        self.assertIn("+233241234567", body)
+        self.assertIn("ama@example.com", body)
+
+    @override_settings(ADMIN_ALERT_PHONES=["020 555 0001", "not-a-number", "+233201111111"])
+    def test_extra_numbers_from_settings_are_texted_and_deduplicated(self):
+        self.make_staff("staff@example.com", "+233201111111", is_staff=True)
+        self.verified_signup()
+        self.assertEqual(sorted(a["recipient"] for a in self.alerts()), ["+233201111111", "+233205550001"])
+
+    @override_settings(ADMIN_SIGNUP_ALERTS_ENABLED=False)
+    def test_can_be_switched_off(self):
+        self.make_staff("staff@example.com", "+233201111111", is_staff=True)
+        self.verified_signup()
+        self.assertEqual(self.alerts(), [])
+
+    def test_nobody_to_tell_is_fine(self):
+        self.assertEqual(self.verified_signup().status_code, 201)
+        self.assertEqual(self.alerts(), [])
+
+    def test_a_failing_provider_never_breaks_the_signup(self):
+        self.make_staff("staff@example.com", "+233201111111", is_staff=True)
+        sid = self.start().data["signup_id"]
+        code = last_code()
+        MemoryProvider.behavior = "reject"
+        res = self.verify(sid, code)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertTrue(User.objects.filter(email="ama@example.com").exists())
+
+
 class SignupValidationTests(SignupTestCase):
     def assert_field_error(self, res, field):
         self.assertEqual(res.status_code, 400, res.data)
@@ -212,7 +324,7 @@ class SignupValidationTests(SignupTestCase):
 
     def test_missing_fields(self):
         res = self.client.post("/api/auth/signup", {}, format="json")
-        for field in ("full_name", "organization_name", "email", "phone", "password"):
+        for field in ("full_name", "organization_name", "email", "phone", "password", "accept_terms", "terms_version"):
             self.assertIn(field, res.data["error"]["fields"])
 
     def test_email_and_phone_must_be_unused(self):

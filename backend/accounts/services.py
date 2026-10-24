@@ -23,6 +23,7 @@ from django.contrib.auth.hashers import make_password
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from common.codes import CodeCheck, check_code, generate_code, hash_code, store_code
 from common.errors import ApiError
@@ -107,6 +108,9 @@ def start_signup(data: dict, *, ip: str) -> dict:
         "full_name": data["full_name"],
         "organization_name": data["organization_name"],
         "password_hash": make_password(data["password"]),
+        # Recorded now, when they ticked the box, not when they finish verifying their phone.
+        "terms_accepted_at": timezone.now().isoformat(),
+        "terms_version": data["terms_version"],
     }
     pipe = r.pipeline()
     pipe.set(_data_key(sid), json.dumps(pending), ex=SIGNUP_TTL)
@@ -250,6 +254,9 @@ def _create_account(pending: dict) -> User:
                 full_name=pending["full_name"],
                 phone=pending["phone"],
                 phone_verified_at=timezone.now(),
+                # Absent only for a sign-up started before terms were asked (it lives at most 10 minutes).
+                terms_accepted_at=parse_datetime(pending["terms_accepted_at"]) if pending.get("terms_accepted_at") else None,
+                terms_version=pending.get("terms_version", ""),
             )
             user.password = pending["password_hash"]   # already hashed
             user.save()

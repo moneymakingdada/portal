@@ -14,6 +14,8 @@ import Messages from "./pages/dashboard/Messages";
 import Wallet from "./pages/dashboard/Wallet";
 import Plans from "./pages/dashboard/Plans";
 import Quickstart from "./pages/dashboard/Quickstart";
+import Privacy from "./pages/legal/Privacy";
+import Terms from "./pages/legal/Terms";
 import SenderIds from "./pages/dashboard/SenderIds";
 import { Loading } from "./components/ui";
 
@@ -56,6 +58,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/signup" element={<PublicOnly><Signup /></PublicOnly>} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route index element={<Overview />} />
         <Route path="customers" element={<Customers />} />

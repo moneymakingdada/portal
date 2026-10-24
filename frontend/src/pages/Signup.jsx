@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, fieldError } from "../lib/api";
+import { LEGAL_VERSION } from "../lib/legal";
 import { useAuth } from "../lib/auth";
 import OtpInput from "../components/OtpInput";
 import { TextField } from "../components/ui";
 import AuthLayout from "./AuthLayout";
 
 const STORAGE_KEY = "signup-pending";
-const EMPTY_FORM = { full_name: "", organization_name: "", email: "", phone: "", password: "" };
+const EMPTY_FORM = { full_name: "", organization_name: "", email: "", phone: "", password: "", accept_terms: false };
+const TERMS_PROMPT = "Tick the box to agree to the Terms of Service and Privacy Policy.";
 
 /** Only non-secret state is kept (never the password), so a refresh resumes at the code screen. */
 function loadPending() {
@@ -76,14 +78,21 @@ function DetailsStep({ form, setForm, notice, onSent }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [termsProblem, setTermsProblem] = useState(null);
+  const termsBox = useRef(null);
   const set = (name) => (event) => setForm((f) => ({ ...f, [name]: event.target.value }));
 
   async function submit(event) {
     event.preventDefault();
+    if (!form.accept_terms) {                 // say so, don't just leave the button doing nothing
+      setTermsProblem(TERMS_PROMPT);
+      termsBox.current?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post("/auth/signup", form);
+      const r = await api.post("/auth/signup", { ...form, terms_version: LEGAL_VERSION });
       const now = Date.now();
       onSent({
         signup_id: r.signup_id,
@@ -99,6 +108,7 @@ function DetailsStep({ form, setForm, notice, onSent }) {
   }
 
   const formError = error && error.code !== "validation_error" ? error.message : null;
+  const termsError = termsProblem || fieldError(error, "accept_terms");
 
   return (
     <form className="auth__form" onSubmit={submit} noValidate>
@@ -123,6 +133,19 @@ function DetailsStep({ form, setForm, notice, onSent }) {
             {showPassword ? "Hide" : "Show"}
           </button>
         } />
+      <div className="auth__terms">
+        <label className="auth__check" htmlFor="accept-terms">
+          <input id="accept-terms" ref={termsBox} type="checkbox" checked={form.accept_terms}
+            aria-invalid={termsError ? "true" : undefined} aria-describedby={termsError ? "accept-terms-error" : undefined}
+            onChange={(e) => { setForm((f) => ({ ...f, accept_terms: e.target.checked })); setTermsProblem(null); }} />
+          <span>
+            I agree to the{" "}
+            <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> and the{" "}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+          </span>
+        </label>
+        {termsError && <p id="accept-terms-error" className="field__error">{termsError}</p>}
+      </div>
       <button type="submit" className="btn btn--forest btn--block" disabled={busy}>
         {busy ? <><span className="spinner" aria-hidden="true" /> Sending code…</> : "Send verification code"}
       </button>
