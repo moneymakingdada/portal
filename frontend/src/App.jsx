@@ -13,6 +13,7 @@ import Templates from "./pages/dashboard/Templates";
 import Messages from "./pages/dashboard/Messages";
 import Wallet from "./pages/dashboard/Wallet";
 import Plans from "./pages/dashboard/Plans";
+import Support from "./pages/dashboard/Support";
 import Quickstart from "./pages/dashboard/Quickstart";
 import Privacy from "./pages/legal/Privacy";
 import Terms from "./pages/legal/Terms";
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="wallet" element={<Wallet />} />
         <Route path="plans" element={<Plans />} />
         <Route path="quickstart" element={<Quickstart />} />
+        <Route path="support" element={<Support />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

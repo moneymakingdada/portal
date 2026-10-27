@@ -42,6 +42,10 @@ projects:
                 sync: false
               - key: ARKESEL_DLR_SECRET
                 sync: false
+              - key: ANTHROPIC_API_KEY
+                sync: false   # the Help chat's AI. Leave empty to turn the assistant off (customers still get the ticket form)
+              - key: SUPPORT_BOT_MODEL
+                value: claude-haiku-5-5
               - key: ADMIN_ALERT_PHONES
                 sync: false   # optional: extra numbers to text on every new sign-up, comma separated (admins with a phone on their profile are texted automatically)
               - key: WELCOME_SMS_ENABLED

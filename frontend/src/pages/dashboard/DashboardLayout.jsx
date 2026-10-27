@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import DashboardTopbar from "../../components/DashboardTopbar";
 import Logo from "../../components/Logo";
-import { IconApiKeys, IconBook, IconBulk, IconCart, IconClose, IconEdit, IconMenu, IconMessage, IconOverview, IconSender, IconUsers, IconWallet } from "../../components/icons";
+import SupportChat from "../../components/SupportChat";
+import { IconApiKeys, IconBook, IconBulk, IconCart, IconClose, IconEdit, IconMenu, IconMessage, IconOverview, IconSender, IconSupport, IconUsers, IconWallet } from "../../components/icons";
 import "../../styles/dashboard.css";
 
 const NAV = [
@@ -16,6 +17,7 @@ const NAV = [
   { to: "/dashboard/wallet", label: "Wallet", icon: IconWallet },
   { to: "/dashboard/plans", label: "Buy SMS", icon: IconCart },
   { to: "/dashboard/quickstart", label: "Quickstart", icon: IconBook },
+  { to: "/dashboard/support", label: "Support", icon: IconSupport },
 ];
 
 export default function DashboardLayout() {
@@ -54,6 +56,7 @@ export default function DashboardLayout() {
         <DashboardTopbar />
         <Outlet />
       </main>
+      {pathname !== "/dashboard/support" && <SupportChat />}
     </div>
   );
 }

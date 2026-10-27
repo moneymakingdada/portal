@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts",
     "messaging",
+    "support",
 ]
 
 MIDDLEWARE = [
@@ -405,3 +406,18 @@ UNFOLD = {
         ],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Support assistant (chat widget in the dashboard)
+# ---------------------------------------------------------------------------
+# Uses the Claude API. With no key the chat still opens but only offers the
+# "send this to our team" form, so a missing key never breaks the dashboard.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+SUPPORT_BOT_MODEL = os.environ.get("SUPPORT_BOT_MODEL", "claude-haiku-5-5")
+SUPPORT_BOT_ENABLED = env_bool("SUPPORT_BOT_ENABLED", True)
+# Whole-request budget in seconds; gunicorn's timeout (render.yaml) must be longer.
+SUPPORT_BOT_DEADLINE = env_int("SUPPORT_BOT_DEADLINE", 40)
+# Text the admins when a ticket is opened; text the customer when staff reply.
+ADMIN_TICKET_ALERTS_ENABLED = env_bool("ADMIN_TICKET_ALERTS_ENABLED", True)
+TICKET_REPLY_SMS_ENABLED = env_bool("TICKET_REPLY_SMS_ENABLED", True)

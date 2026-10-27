@@ -27,3 +27,4 @@ export const IconSettings = icon(<><circle cx="12" cy="12" r="3" /><path d="M19.
 export const IconCart = icon(<><circle cx="9" cy="20" r="1.5" /><circle cx="18" cy="20" r="1.5" /><path d="M2.5 3.5h2.7l2.3 11.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1l1.6-6.1H6.1" /></>);
 export const IconSender = icon(<><path d="M4 5h16v11H9l-5 4z" /><path d="M8.5 10.5h7" /></>);
 export const IconBulk = icon(<><path d="M4 9.5v5l10 4V5.5z" /><path d="M14 9a3 3 0 0 1 0 6" /><path d="M7 15.5l1 4.5h3l-1-3.6" /></>);
+export const IconSupport = icon(<><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><rect x="3" y="13" width="4" height="6" rx="1.5" /><rect x="17" y="13" width="4" height="6" rx="1.5" /><path d="M19 19c0 1.5-1.5 2.5-4 2.5h-2" /></>);

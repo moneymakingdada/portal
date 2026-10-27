@@ -28,8 +28,8 @@ describe("legal pages", () => {
   });
 
   it("the version people accept matches the date shown on the pages", () => {
-    expect(LEGAL_VERSION).toBe("2026-10-24");
-    expect(LEGAL_UPDATED).toBe("24 October 2026");
+    expect(LEGAL_VERSION).toBe("2026-10-27");
+    expect(LEGAL_UPDATED).toBe("27 October 2026");
   });
 
   it("each page links to the other and back home", () => {

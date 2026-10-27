@@ -60,6 +60,10 @@ const sections = [
             Messages travel through SMS providers and the mobile networks (MTN, Telecel, AirtelTigo and others). We can't
             promise that a message will arrive, or when. A message is only shown as “Delivered” when the provider reports it.
           </li>
+          <li>
+            The Help chat is an automated assistant. It can be wrong, it is not legal, tax or financial advice, and it can't change
+            your account, give refunds or make promises on our behalf. Anything that matters should be confirmed by our team.
+          </li>
           <li>We may improve, change or retire features. Where we can, we'll tell you first if a change affects you.</li>
         </ul>
       </>

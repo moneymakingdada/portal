@@ -59,6 +59,10 @@ const sections = [
         <ul>
           <li>The amount, date, status and reference of each top-up. Paystack collects your card or Mobile Money details directly. We never receive them.</li>
         </ul>
+        <p><strong>Support</strong></p>
+        <ul>
+          <li>What you type to the Help chat and the replies, and tickets you send to our team and our answers. Please don't type passwords, API keys, card numbers or verification codes into the chat.</li>
+        </ul>
         <p><strong>Technical data</strong></p>
         <ul>
           <li>Your IP address and request details, used to limit abuse and keep the service secure, and cookies that keep you signed in (see below).</li>
@@ -77,7 +81,7 @@ const sections = [
           <li>To charge your wallet, process top-ups and refunds, and keep a record of every movement of money.</li>
           <li>To review sender ID requests with the SMS provider and the networks.</li>
           <li>To prevent fraud, spam and misuse, including rate limits and daily spend limits.</li>
-          <li>To give you support, and to send you service messages such as a welcome text or the outcome of a sender ID request.</li>
+          <li>To give you support, including answering your questions in the Help chat, and to send you service messages such as a welcome text or the outcome of a sender ID request.</li>
           <li>To meet our legal obligations and to protect our rights.</li>
         </ul>
         <p>
@@ -97,6 +101,13 @@ const sections = [
         <ul>
           <li><strong>SMS providers and mobile networks</strong>, such as Arkesel and Dexatel and the networks they use (MTN, Telecel, AirtelTigo), who receive the recipient's number, the sender name and the message text in order to deliver it.</li>
           <li><strong>Paystack</strong>, which processes top-up payments.</li>
+          <li>
+            <strong>Our AI provider (Anthropic)</strong>, which powers the Help chat. To answer you, the chat sends what you type
+            and the details it looks up on your own account (such as message statuses, recipient numbers, a short preview of message
+            text, your wallet balance, payment references and sender ID status) to the provider. Verification codes are never
+            included. The assistant can only look at your own account, and a person on our team handles anything it can't resolve.
+            Its answers can be wrong; check anything important with our team.
+          </li>
           <li><strong>Our hosting and infrastructure providers</strong>, who store and process data for us under their own security commitments.</li>
           <li><strong>Authorities and advisers</strong>, where the law requires it or to protect our rights, for example to a regulator, a court, or our lawyers.</li>
         </ul>
@@ -123,6 +134,7 @@ const sections = [
           <li>A sign-up that is never verified is deleted after 10 minutes. Verification codes expire within minutes.</li>
           <li>Account details are kept while your account is open.</li>
           <li>Message logs and wallet records are kept while your account is open, and afterwards for as long as we need them for billing, disputes, fraud prevention and the law.</li>
+          <li>Help chats and tickets are kept while your account is open and afterwards for as long as we need them to answer follow-up questions and to improve support.</li>
           <li>Sender ID documents are kept while the request or sender ID is active, and for a reasonable period after so we can answer questions from the networks.</li>
           <li>When we no longer need information, we delete it or make it anonymous.</li>
         </ul>
